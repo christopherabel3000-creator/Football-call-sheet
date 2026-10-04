@@ -1,0 +1,1965 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Call Sheet Football</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column like a coordinator's laminated call sheet, with a stadium scoreboard pinned on top */
+:root {
+  --paper: #EBEFEA;
+  --card: #FAFBF9;
+  --ink: #14201A;
+  --muted: #56655C;
+  --line: #C8D2CA;
+  --turf: #2E6B3F;
+  --turf-dark: #275E36;
+  --chalk: rgba(255,255,255,.55);
+  --firstdown: #E5B925;
+  --board: #11201A;
+  --board-ink: #EEF3EE;
+  --board-dim: #8FA596;
+  --good: #1E7845;
+  --bad: #B2342A;
+  --focus: #1F5FBF;
+  --display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
+  --body: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Chivo Mono', ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0C1310; --card: #151F1A; --ink: #E3EBE5; --muted: #93A399; --line: #2B3A31;
+    --turf: #255834; --turf-dark: #1F4D2C; --chalk: rgba(255,255,255,.4); --firstdown: #E5B925;
+    --board: #050A07; --board-ink: #EEF3EE; --board-dim: #7D9184;
+    --good: #4FB57A; --bad: #E56D60; --focus: #86B4FF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0C1310; --card: #151F1A; --ink: #E3EBE5; --muted: #93A399; --line: #2B3A31;
+  --turf: #255834; --turf-dark: #1F4D2C; --chalk: rgba(255,255,255,.4); --firstdown: #E5B925;
+  --board: #050A07; --board-ink: #EEF3EE; --board-dim: #7D9184;
+  --good: #4FB57A; --bad: #E56D60; --focus: #86B4FF; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--body); font-size: 16px; line-height: 1.45;
+  padding-inline: 16px; padding-block: 12px 40px;
+}
+.wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 800; line-height: 1; text-wrap: balance; margin: 0; letter-spacing: .01em; }
+p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+
+/* Scoreboard */
+.board {
+  background: var(--board); color: var(--board-ink);
+  border-radius: 10px; padding: 12px 14px 10px;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px 10px;
+  font-variant-numeric: tabular-nums;
+}
+.bteam { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bteam.right { flex-direction: row-reverse; text-align: right; }
+.bteam .id { min-width: 0; display: grid; }
+.bteam .abbr { font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; }
+.bteam.right .abbr { justify-content: flex-end; }
+.bteam .full { font-size: 12px; color: var(--board-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bteam .pts { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: .9; margin-left: auto; }
+.bteam.right .pts { margin-left: 0; margin-right: auto; }
+.tos { display: flex; gap: 4px; margin-top: 4px; }
+.bteam.right .tos { justify-content: flex-end; }
+.tos i { width: 12px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.18); }
+.tos i.on { background: var(--firstdown); }
+.clockbox { border: 1.5px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 10px; background: var(--paper); }
+.clockbox .cstat { font-family: var(--mono); font-size: 13px; }
+.clockbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.clockbtns .btn.ghost { width: auto; flex: 1 1 140px; font-size: 16px; padding: 9px 10px; }
+.clockbtns .btn.ghost[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.stripe { width: 6px; align-self: stretch; border-radius: 3px; background: var(--team); flex: none; }
+.ballmark { width: 14px; height: 9px; border-radius: 50%; background: #9A5A2B; box-shadow: inset 0 0 0 1.5px #E9D8C4; flex: none; }
+.bmid { display: grid; justify-items: center; padding-inline: 4px; }
+.bmid .q { font-family: var(--mono); font-size: 12px; color: var(--board-dim); letter-spacing: .08em; }
+.bmid .clk { font-family: var(--display); font-weight: 800; font-size: 30px; line-height: 1; color: var(--firstdown); }
+.board .sit { grid-column: 1 / -1; border-top: 1px solid rgba(255,255,255,.12); padding-top: 8px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 13px; }
+.board .sit b { font-weight: 500; color: var(--board-ink); }
+.board .sit span { color: var(--board-dim); }
+
+/* Field */
+.field { position: relative; height: 68px; border-radius: 6px; overflow: hidden; background: var(--turf); }
+.field .turf { position: absolute; inset: 0 8.333%; background:
+  repeating-linear-gradient(90deg, var(--chalk) 0 1.5px, transparent 1.5px 10%),
+  repeating-linear-gradient(90deg, var(--turf) 0 10%, var(--turf-dark) 10% 20%); }
+.field .turf::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 1.5px; background: var(--chalk); }
+.ez { position: absolute; top: 0; bottom: 0; width: 8.333%; background: var(--team); display: grid; place-items: center; }
+.ez span { writing-mode: vertical-rl; font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: .12em; color: #fff; }
+.ez.l { left: 0; } .ez.l span { transform: rotate(180deg); }
+.ez.r { right: 0; }
+.yn { position: absolute; bottom: 4px; transform: translateX(-50%); font-family: var(--display); font-weight: 600; font-size: 12px; color: rgba(255,255,255,.75); }
+.mk { position: absolute; top: 0; bottom: 0; width: 3px; transform: translateX(-50%); }
+.mk.los { background: #3E8EEA; }
+.mk.fd { background: var(--firstdown); }
+.ball { position: absolute; top: 40%; width: 16px; height: 10px; transform: translate(-50%, -50%); border-radius: 50%; background: #8D4F22; box-shadow: inset 0 0 0 1.5px #EBDCC7, 0 1px 3px rgba(0,0,0,.5); transition: left .7s cubic-bezier(.2,.8,.2,1); }
+.trail { position: absolute; top: 40%; height: 4px; transform: translateY(-50%); background: rgba(255,255,255,.55); border-radius: 2px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 5px; }
+
+/* Panels */
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: grid; gap: 14px; }
+.banner { border-left: 4px solid var(--firstdown); background: var(--card); padding: 10px 12px; border-radius: 0 8px 8px 0; font-size: 15px; }
+
+/* Buttons */
+.btn { appearance: none; border: 0; border-radius: 8px; padding: 14px 18px; font-family: var(--display); font-weight: 800; font-size: 21px; letter-spacing: .03em; text-transform: uppercase; background: var(--ink); color: var(--paper); width: 100%; }
+.btn.team { background: var(--team); color: #fff; }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); font-size: 17px; padding: 10px 14px; }
+.linkbtn { appearance: none; background: none; border: 0; padding: 6px 0; font-family: var(--mono); font-size: 13px; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn.warn { color: var(--bad); }
+
+/* Setup */
+.masthead { display: grid; gap: 6px; padding-block: 8px 4px; }
+.masthead h1 { font-size: clamp(44px, 13vw, 64px); text-transform: uppercase; }
+.masthead h1 em { font-style: normal; color: var(--turf); }
+.teamcfg { display: grid; gap: 12px; border-top: 6px solid var(--team); }
+.teamcfg label { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.teamcfg input[type=text] { width: 100%; font: 600 20px var(--body); padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; background: var(--c); box-shadow: inset 0 0 0 2px var(--card); }
+.sw[aria-pressed="true"] { border-color: var(--ink); }
+.seg { display: flex; border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; appearance: none; border: 0; background: transparent; padding: 10px 6px; font-weight: 600; font-size: 15px; }
+.seg button + button { border-left: 1.5px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+
+/* Handoff */
+.handoff { border-top: 8px solid var(--team); text-align: left; padding-block: 28px; }
+.handoff h2 { font-size: clamp(34px, 10vw, 46px); text-transform: uppercase; }
+.handoff h2 span { color: var(--team); filter: saturate(1.1); }
+
+/* Call sheet */
+.callhead { display: grid; gap: 6px; }
+.callhead h2 { font-size: 34px; text-transform: uppercase; }
+.plays { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pkgs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pkgs.two { grid-template-columns: 1fr 1fr; }
+.pkg { appearance: none; text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
+.pkg .pn { font-family: var(--display); font-weight: 800; font-size: 17px; text-transform: uppercase; line-height: 1.05; }
+.pkg .pw { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.pkg[aria-pressed="true"] { border-color: var(--team); box-shadow: inset 0 0 0 2px var(--team); background: color-mix(in srgb, var(--team) 10%, var(--card)); }
+.pkdesc { font-size: 14px; margin-top: -6px; }
+.callchip .pk { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+@media (max-width: 380px) { .pkgs { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 380px) { .plays { grid-template-columns: 1fr; } }
+.play { appearance: none; text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.play .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.play .nm { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.05; text-transform: uppercase; }
+.play .ds { font-size: 14px; color: var(--muted); line-height: 1.3; }
+.play[aria-pressed="true"] { border-color: var(--team); box-shadow: inset 0 0 0 2px var(--team); background: color-mix(in srgb, var(--team) 10%, var(--card)); }
+.play.st { border-style: dashed; }
+.sechead { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.lockbar { position: sticky; bottom: 0; padding-block: 12px calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--paper) 70%, transparent); }
+
+/* Result */
+.calls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.callchip { border: 1.5px solid var(--line); border-top: 5px solid var(--team); border-radius: 8px; padding: 10px 12px; background: var(--card); min-width: 0; }
+.callchip .who { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.callchip .nm { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1.05; }
+.headline { font-family: var(--display); font-weight: 800; font-size: clamp(52px, 17vw, 84px); line-height: .9; text-transform: uppercase; animation: pop .45s cubic-bezier(.2,1.4,.4,1) both; }
+.headline.good { color: var(--good); } .headline.bad { color: var(--bad); }
+@keyframes pop { from { transform: scale(.85); opacity: .4; } to { transform: none; opacity: 1; } }
+.read { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; padding: 6px 10px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); justify-self: start; }
+.read i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.read.o i { background: var(--good); } .read.d i { background: var(--bad); }
+.narr { font-size: 18px; }
+.next { font-family: var(--mono); font-size: 14px; }
+
+/* At the line (audibles) */
+.lookcard { border: 1.5px solid var(--line); border-left: 6px solid var(--bad); border-radius: 8px; padding: 12px 14px; background: var(--card); display: grid; gap: 4px; }
+.lookcard .lk { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1.05; text-transform: uppercase; }
+.lookcard .lh { font-size: 15px; }
+.mycall { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; border: 1.5px solid var(--team); border-radius: 8px; padding: 10px 14px; background: color-mix(in srgb, var(--team) 8%, var(--card)); }
+.mycall .nm { font-family: var(--display); font-weight: 800; font-size: 24px; text-transform: uppercase; line-height: 1.05; }
+.lockbar.two { display: grid; gap: 8px; }
+.audnote { font-size: 15px; border-left: 4px solid var(--focus); padding: 6px 10px; background: var(--paper); border-radius: 0 6px 6px 0; }
+
+/* PAT + final */
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.final h2 { font-size: clamp(40px, 12vw, 58px); text-transform: uppercase; }
+
+/* Log + box score */
+details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+summary { cursor: pointer; padding: 12px 16px; font-family: var(--display); font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
+.log { list-style: none; margin: 0; padding: 0 16px 12px; display: grid; gap: 0; max-height: 420px; overflow-y: auto; }
+.log li { border-top: 1px solid var(--line); padding-block: 9px; display: grid; gap: 2px; font-size: 14px; }
+.log .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.log .cl { font-family: var(--mono); font-size: 12px; }
+.log .tm { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--team); margin-right: 6px; }
+.tablewrap { overflow-x: auto; padding: 0 16px 14px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { padding: 7px 6px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; border-top: 0; }
+.foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.topbar { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: -6px; }
+.soundbtn { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 5px 12px 5px 10px; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+.soundbtn svg { width: 16px; height: 16px; }
+.soundbtn[aria-pressed="false"] { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { .headline { animation: none; } .ball { transition: none; } }
+</style>
+
+<div class="wrap" id="app"></div>
+
+<script>
+(function () {
+  "use strict";
+  const KEY = "callsheet-football-v1";
+
+  /* ---------- Playbook ---------- */
+  const OFF_IDS = ["ir", "or", "sc", "sp", "dp", "pa"];
+  const DEF_IDS = ["rb", "ba", "ma", "zo", "pr", "ab"];
+  const OFFP = {
+    ir: { name: "Inside Run", kind: "run", tag: "Run", desc: "Downhill between the tackles. Steady and low risk.", mean: 3.8, sd: 2.8, tfl: .08, big: .025, fum: .012, oob: .04 },
+    or: { name: "Outside Zone", kind: "run", tag: "Run", desc: "Stretch to the edge. Boom or bust.", mean: 4.0, sd: 5, tfl: .15, big: .05, fum: .015, oob: .35 },
+    sc: { name: "Screen", kind: "pass", tag: "Pass", desc: "Let the rush come, then dump it off behind it.", comp: .80, mean: 5, sd: 4.5, min: -3, int: .012, sack: .02, air: 0 },
+    sp: { name: "Quick Game", kind: "pass", tag: "Pass", desc: "Slants and outs. Moves the chains.", comp: .66, mean: 7, sd: 3, min: 1, int: .022, sack: .04, air: 6 },
+    dp: { name: "Deep Shot", kind: "pass", tag: "Pass", desc: "Go routes and posts. Big gain or nothing.", comp: .38, mean: 27, sd: 9, min: 13, int: .045, sack: .07, air: 22, deep: 1 },
+    pa: { name: "Play-Action", kind: "pass", tag: "Pass", desc: "Sell the run, then throw over the top.", comp: .54, mean: 16, sd: 7, min: 6, int: .03, sack: .06, air: 14, deep: 1 },
+    te: { name: "Tackle Eligible", kind: "pass", tag: "Trick", desc: "Jumbo only. Throw to the tackle who reported eligible. Short, but a shock.", comp: .74, mean: 4, sd: 2.5, min: 1, int: .02, sack: .03, air: 3, noBig: true }
+  };
+  const DEFP = {
+    rb: { name: "Run Blitz", tag: "Front", desc: "Crash the gaps. Stuffs runs, exposed to play-action." },
+    ba: { name: "Base 4-3", tag: "Front", desc: "Balanced look. No big holes, no big wins." },
+    ma: { name: "Man Coverage", tag: "Coverage", desc: "Tight on quick routes. Beatable deep." },
+    zo: { name: "Cover 2 Zone", tag: "Coverage", desc: "Takes away deep shots and screens. Runs find room." },
+    pr: { name: "Prevent", tag: "Coverage", desc: "Protect the deep ball. Gives up the short stuff." },
+    ab: { name: "All-Out Blitz", tag: "Pressure", desc: "Send everyone. Sack or get burned." },
+    blk: { name: "Block the Kick", tag: "Special teams", desc: "Sell out to block it. Risks roughing the kicker, and a fake would walk right past you." },
+    ret: { name: "Punt Return", tag: "Special teams", desc: "Set up a return. Better field position, but soft if they fake or go for it." }
+  };
+  const FAKE_IDS = ["fp", "ffg"];
+  // What the offense sees at the line for each defensive call. Defenses sometimes disguise it.
+  const LOOKS = {
+    rb: { name: "Eight in the box", hint: "A safety creeps down. Often a run blitz." },
+    ba: { name: "Even front, one high safety", hint: "Balanced. Doesn't tip much either way." },
+    ma: { name: "Press corners", hint: "Corners up in the receivers' faces. Often man coverage." },
+    zo: { name: "Two high safeties", hint: "Deep help on both sides. Often Cover 2." },
+    pr: { name: "Soft corners, safeties deep", hint: "Playing way off the ball. Often prevent." },
+    ab: { name: "Linebackers walked up", hint: "Bodies on the line. Pressure could be coming." },
+    blk: { name: "Everyone on the line", hint: "The kick-block unit is out there. They're coming after the kick." },
+    ret: { name: "Returner back deep", hint: "The punt return unit is on the field. Light up front." }
+  };
+  // Special teams units can't be disguised: you can see who ran onto the field
+  const DISGUISE = { rb: .3, ba: .25, ma: .4, zo: .33, pr: .28, ab: .45, blk: 0, ret: 0 };
+  // Matchup edge for the offense: +2 great call, -2 the defense guessed right
+  const M = {
+    ir: { rb: -2, ba: 0, ma: 1, zo: 1, pr: 1, ab: -1 },
+    or: { rb: -2, ba: 0, ma: 0, zo: 1, pr: 1, ab: 1 },
+    sc: { rb: 1, ba: 0, ma: 0, zo: -1, pr: 1, ab: 2 },
+    sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1 },
+    dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0 },
+    pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2 },
+    te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1 }
+  };
+  // A kick-block unit plays a normal snap like an all-out blitz; a punt return unit is badly outnumbered
+  Object.keys(M).forEach(k => { M[k].blk = M[k].ab; M[k].ret = (k === "dp" || k === "pa") ? 1 : 2; });
+  const SACK = {
+    rb: { sc: .01, sp: .01, dp: .02, pa: .02 },
+    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
+    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 },
+    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
+    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 }
+  };
+  /* ---------- Personnel ---------- */
+  const OFF_PKG_IDS = ["p10", "p11", "p12", "p21", "p13", "jumbo"];
+  const DEF_PKG_IDS = ["base", "nickel", "dime", "goal"];
+  const OFF_PKGS = {
+    p10: { name: "10 Personnel", short: "10", who: "1 RB · 4 WR", desc: "Four wide. Spreads the defense out to pass.", sack: .02 },
+    p11: { name: "11 Personnel", short: "11", who: "1 RB · 1 TE · 3 WR", desc: "The standard. Balanced.", sack: 0 },
+    p12: { name: "12 Personnel", short: "12", who: "1 RB · 2 TE · 2 WR", desc: "Two tight ends. Run threat, good for play-action.", sack: -.01 },
+    p21: { name: "21 Personnel", short: "21", who: "2 RB · 1 TE · 2 WR", desc: "A fullback leads the way. Downhill runs.", sack: -.005 },
+    p13: { name: "13 Personnel", short: "13", who: "1 RB · 3 TE · 1 WR", desc: "Heavy. Power runs, few targets.", sack: -.015, comp: { dp: .65, sp: .9 } },
+    jumbo: { name: "Jumbo", short: "Jumbo", who: "6 OL · 1 RB · 3 TE", desc: "Extra lineman for short yardage. The tackle can report eligible.", sack: -.02, comp: { dp: .3, sp: .75, sc: .8, pa: .85 } }
+  };
+  const DEF_PKGS = {
+    base: { name: "Base 4-3", short: "Base", who: "4 DL · 3 LB · 4 DB", desc: "Built for balance and stopping the run." },
+    nickel: { name: "Nickel", short: "Nickel", who: "4 DL · 2 LB · 5 DB", desc: "Extra corner for three-receiver sets." },
+    dime: { name: "Dime", short: "Dime", who: "4 DL · 1 LB · 6 DB", desc: "Pass defense first. Light against the run." },
+    goal: { name: "Goal Line", short: "Goal Line", who: "6 DL · 3 LB · 2 DB", desc: "Everyone in the box. Stuffs runs, thin in coverage." }
+  };
+  // How well each play suits the offensive package (added to the matchup edge)
+  const PKG_FIT = {
+    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1 },
+    p11: {},
+    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5 },
+    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5 },
+    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5 },
+    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0 }
+  };
+  // Offensive package against defensive package: edge for runs and for passes
+  const CLASH = {
+    p10: { base: { run: .5, pass: 1 }, nickel: { run: 0, pass: 0 }, dime: { run: .5, pass: -.5 }, goal: { run: 1.5, pass: 2 } },
+    p11: { base: { run: 0, pass: .5 }, nickel: { run: 0, pass: 0 }, dime: { run: .5, pass: -.5 }, goal: { run: 1, pass: 1.5 } },
+    p12: { base: { run: 0, pass: 0 }, nickel: { run: 1, pass: 0 }, dime: { run: 1.5, pass: -.5 }, goal: { run: -.5, pass: 1 } },
+    p21: { base: { run: 0, pass: 0 }, nickel: { run: 1, pass: 0 }, dime: { run: 1.5, pass: 0 }, goal: { run: -.5, pass: 1 } },
+    p13: { base: { run: 0, pass: 0 }, nickel: { run: 1.5, pass: 0 }, dime: { run: 2, pass: 0 }, goal: { run: -1, pass: 1 } },
+    jumbo: { base: { run: 0, pass: 0 }, nickel: { run: 1.5, pass: 0 }, dime: { run: 2, pass: .5 }, goal: { run: -1, pass: .5 } }
+  };
+  function pkgEdge(off, opk, dpk) {
+    const fit = (PKG_FIT[opk] || {})[off] || 0, cl = ((CLASH[opk] || {})[dpk]) || { run: 0, pass: 0 };
+    return fit + (OFFP[off].kind === "run" ? cl.run : cl.pass);
+  }
+  const COLORS = ["#A3242F", "#22407D", "#C95A17", "#5A3990", "#167370", "#A87C0E", "#2F6A35", "#2B2B2B"];
+  const QLENS = [{ s: 240, l: "Quick", d: "4-min quarters" }, { s: 480, l: "Standard", d: "8-min" }, { s: 900, l: "Full", d: "15-min" }];
+
+  /* ---------- Helpers ---------- */
+  const rand = Math.random;
+  const ri = (a, b) => a + Math.floor(rand() * (b - a + 1));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function normal(m, s) { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return m + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function wpick(w) { const ks = Object.keys(w); let t = 0; ks.forEach(k => t += Math.max(0, w[k])); let r = rand() * t; for (const k of ks) { r -= Math.max(0, w[k]); if (r <= 0) return k; } return ks[0]; }
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const yd = n => `${n} yard${Math.abs(n) === 1 ? "" : "s"}`;
+  const ord = n => ["", "1st", "2nd", "3rd", "4th"][n] || n + "th";
+  const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const qLabel = q => q === 5 ? "OT" : "Q" + q;
+
+  let S = null;
+  const name = t => S.teams[t].name;
+  const abbr = t => S.teams[t].abbr;
+  function makeAbbr(n, other) {
+    const letters = n.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    let a = letters.slice(0, 3) || "TM";
+    if (other && a === other) a = (letters.slice(0, 2) + (letters[letters.length - 1] || "2")).slice(0, 3);
+    return a;
+  }
+  function spotText(team, spot) {
+    if (spot === 50) return "50";
+    return spot < 50 ? `${abbr(team)} ${spot}` : `${abbr(1 - team)} ${100 - spot}`;
+  }
+  function downText() {
+    return `${ord(S.down)} & ${S.spot + S.toGo >= 100 ? "Goal" : S.toGo}`;
+  }
+  const fx = (team, spot) => team === 0 ? spot : 100 - spot;
+  const bothHuman = () => !S.teams[0].cpu && !S.teams[1].cpu;
+  const kickDist = () => 100 - S.spot + 18;
+  function fgProb(d) {
+    if (d <= 30) return .97;
+    if (d <= 40) return .97 - (d - 30) * .007;
+    if (d <= 50) return .90 - (d - 40) * .012;
+    if (d <= 55) return .78 - (d - 50) * .032;
+    return Math.max(.08, .62 - (d - 55) * .05);
+  }
+  const fgAvailable = () => !S.twoPt && kickDist() <= 63 && (S.down === 4 || ((S.quarter === 2 || S.quarter >= 4) && S.clock <= 40));
+  const puntAvailable = () => !S.twoPt && S.down === 4;
+
+  /* ---------- Game flow ---------- */
+  function defaultDraft() {
+    return { t: [{ name: "Home", color: COLORS[0], cpu: false }, { name: "Visitors", color: COLORS[1], cpu: false }], qLen: 240, aud: true };
+  }
+  function mkTeam(c, otherAbbr) {
+    const nm = (c.name || "").trim() || "Team";
+    return { name: nm, abbr: makeAbbr(nm, otherAbbr), color: c.color, cpu: !!c.cpu, score: 0, st: { plays: 0, yds: 0, rush: 0, pass: 0, fd: 0, to: 0, pen: 0, penYds: 0 } };
+  }
+  function initGame(cfg) {
+    const t0 = mkTeam(cfg.t[0]);
+    const t1 = mkTeam(cfg.t[1], t0.abbr);
+    const recv = rand() < .5 ? 0 : 1;
+    S = { v: 1, cfg, teams: [t0, t1], quarter: 1, clock: cfg.qLen, poss: recv, spot: 35, down: 1, toGo: 10, firstRecv: recv,
+      offCall: null, defCall: null, sel: null, side: "off", phase: "", banner: "", log: [], last: null,
+      needPAT: false, patTeam: 0, periodOver: false, gameOver: false,
+      tos: [3, 3], clockRunning: false, oobRestart: false, spikeNext: false, toNote: "" };
+    S.banner = `Coin toss: ${name(recv)} receive. ${kickoff(recv, false)}`;
+    startPlay();
+  }
+  function startDrive(team, spot) { S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
+  // Kickoff: touchbacks to the 35, most kicks returned
+  function kickoff(rcv, allowTD) {
+    const roll = rand();
+    if (roll < .25) { startDrive(rcv, 35); return `Kickoff is a touchback. ${name(rcv)} start at their own 35.`; }
+    if (roll < .27) { startDrive(rcv, 40); return `The kickoff lands short of the landing zone. ${name(rcv)} get the ball at their own 40.`; }
+    tick(ri(5, 8));
+    if (allowTD && rand() < .006) {
+      score(rcv, 6); S.needPAT = !S.gameOver; S.patTeam = rcv; startDrive(rcv, 99);
+      return `The kickoff is returned all the way! ${name(rcv)} touchdown!`;
+    }
+    let spot = Math.round(normal(29, 6));
+    const big = rand() < .05;
+    if (big) spot += ri(15, 35);
+    spot = clamp(spot, 8, 95);
+    const caught = ri(-3, 6);
+    startDrive(rcv, spot);
+    const ret = spot - caught;
+    return big
+      ? `Big kickoff return! ${ret}-yard return out to the ${spotText(rcv, spot)}.`
+      : `Kickoff returned ${yd(ret)} to the ${spotText(rcv, spot)}.`;
+  }
+  // Onside kicks: only for a team that is losing with under 2:00 left in the 4th quarter
+  const ONSIDE_P = 1 / 15;
+  function onsideOK(k) {
+    return S.quarter === 4 && S.clock > 0 && S.clock < 120 && !S.periodOver && !S.gameOver && S.teams[k].score < S.teams[1 - k].score;
+  }
+  function cpuWantsOnside(k) {
+    const down = S.teams[1 - k].score - S.teams[k].score;
+    return down >= 9 || S.clock <= 60 || S.tos[k] === 0;
+  }
+  // After a score: kick off right away, or let a trailing human coordinator choose
+  function kickAfterScore(k) {
+    if (onsideOK(k)) {
+      if (!S.teams[k].cpu) { S.kickChoice = { team: k }; return `${name(k)} kick off next. Trailing late, they can kick deep or try an onside kick.`; }
+      if (cpuWantsOnside(k)) return onsideKick(k).text;
+    }
+    return kickoff(1 - k, true);
+  }
+  function onsideKick(k) {
+    const rcv = 1 - k, land = 35 + ri(10, 13);
+    tick(ri(3, 5));
+    if (rand() < ONSIDE_P) { startDrive(k, land); return { ok: true, text: `Onside kick... and ${name(k)} recover it at the ${spotText(k, land)}!` }; }
+    startDrive(rcv, 100 - land);
+    return { ok: false, text: `Onside kick, but ${name(rcv)} fall on it at the ${spotText(rcv, S.spot)}.` };
+  }
+  function doKickChoice(kind) {
+    const c = S.kickChoice; if (!c) return;
+    S.kickChoice = null;
+    const k = c.team, fromX = fx(k, 35), pre = [S.teams[0].score, S.teams[1].score];
+    let r;
+    if (kind === "onside") {
+      const o = onsideKick(k);
+      r = { offId: "onside", team: k, head: o.ok ? "Recovered!" : "Onside fails", tone: o.ok ? "good" : "bad", s: o.ok ? 2 : -1, text: o.text,
+        read: { c: o.ok ? "o" : "d", t: o.ok ? `${name(k)} keep the ball. The comeback is alive.` : `${name(1 - k)} hold on. Great field position for them.` } };
+    } else {
+      const text = kickoff(1 - k, true);
+      r = { offId: "kickoff", team: k, head: S.needPAT ? "Return TD" : "Kickoff", tone: S.needPAT ? "bad" : "", text };
+    }
+    r.fromX = fromX; r.toX = S.needPAT ? fx(1 - k, 100) : fx(S.poss, S.spot);
+    r.sub = S.needPAT ? "" : `${name(S.poss)} ball. ${downText()} at the ${spotText(S.poss, S.spot)}.`;
+    r.id = S.playId = (S.playId || 0) + 1;
+    finishClock(r, true);
+    S.last = r; S.phase = "result"; S.banner = "";
+    S.log.unshift({ q: S.quarter, clock: S.clock, team: k, sit: "Kickoff", off: kind === "onside" ? "Onside kick" : "Kickoff", def: "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
+  }
+  // Game clock. Play time comes off when the play runs; the time to line up for the next snap
+  // comes off when "Next play" is tapped, unless the clock is stopped.
+  const hasTwoMinute = () => S.quarter === 2 || S.quarter >= 4;
+  function tick(sec) {
+    const before = S.clock;
+    S.clock -= sec;
+    if (hasTwoMinute() && before > 120 && S.clock <= 120 && S.clock > 0) S.tmwHit = true;
+    if (S.clock <= 0) { S.clock = 0; S.periodOver = true; }
+  }
+  function runoff(sec) {
+    const before = S.clock, after = before - sec;
+    if (hasTwoMinute() && before > 120 && after <= 120) { S.clock = 120; S.clockRunning = false; S.tmwJust = true; S.banner = "Two-minute warning. The clock is stopped."; return "tmw"; }
+    if (after <= 0) { S.clock = 0; S.periodOver = true; return "end"; }
+    S.clock = after; return "ok";
+  }
+  // Inside 2:00 of the first half or 5:00 of the second half, running out of bounds stops the clock until the snap
+  const oobWindow = () => (S.quarter === 2 && S.clock <= 120) || (S.quarter >= 4 && S.clock <= 300);
+  function finishClock(r, stopped) {
+    S.oobRestart = false; S.toNote = "";
+    if (!stopped && r.oob) { if (oobWindow()) stopped = true; else S.oobRestart = true; }
+    if (S.tmwHit) { S.tmwHit = false; stopped = true; r.tmw = true; S.tmwJust = true; }
+    S.clockRunning = !stopped && !S.periodOver;
+  }
+  function score(team, pts) { S.teams[team].score += pts; if (S.quarter === 5) S.gameOver = true; }
+
+  // Kneel-down: offense tied or leading, opponent out of timeouts, 4th-quarter two-minute warning already passed.
+  // The option opens on a 1st down and stays open for the rest of that series.
+  function kneelBase() {
+    const o = S.poss;
+    return S.quarter === 4 && S.clock <= 120 && S.teams[o].score >= S.teams[1 - o].score && S.tos && S.tos[1 - o] === 0;
+  }
+  const kneelAvailable = () => !!S.kneelSeries && kneelBase();
+  function startPlay() {
+    if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
+    S.offCall = null; S.defCall = null; S.sel = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
+    S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock };
+    S.offPkg = null; S.defPkg = null;
+    if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = pkgMem(S.poss).off; S.phase = bothHuman() ? "handoff" : "call"; }
+    else { S.offPkg = cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
+  }
+  function defStep() {
+    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = pkgMem(1 - S.poss).def; S.phase = bothHuman() ? "handoff" : "call"; }
+    else { S.defPkg = cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
+  }
+  /* ---------- Audibles ---------- */
+  const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
+  // Plays the offense can check to from its current personnel
+  const audIds = () => OFF_IDS.concat(S.offPkg === "jumbo" ? ["te"] : []).filter(id => id !== S.offCall);
+  function makeLook() {
+    const d = S.defCall, fake = rand() < (DISGUISE[d] ?? .25);
+    const shown = fake ? DEF_IDS.filter(x => x !== d)[ri(0, DEF_IDS.length - 2)] : d;
+    return { d: shown, fake };
+  }
+  const edgeVs = (off, def) => clamp(M[off][def] + pkgEdge(off, S.offPkg, S.defPkg), -3, 3);
+  // Both calls are in: the offense gets one look at the defense before the snap
+  function afterDef() {
+    if (!audiblesOn() || !OFFP[S.offCall]) { resolve(); return; }
+    S.look = makeLook();
+    if (S.teams[S.poss].cpu) { cpuAudible(); resolve(); return; }
+    S.audSel = null;
+    if (bothHuman()) { S.side = "aud"; S.phase = "handoff"; } else S.phase = "los";
+  }
+  function audible(to) {
+    if (to && to !== S.offCall && OFFP[to]) { S.aud = { from: S.offCall, to }; S.offCall = to; }
+    resolve();
+  }
+  // The computer checks out of a play only when the look says it is walking into a bad matchup
+  function cpuAudible() {
+    const ld = S.look.d, cur = edgeVs(S.offCall, ld);
+    if (cur > -1) return;
+    let best = null, be = -9;
+    audIds().forEach(id => { const e = edgeVs(id, ld) + (S.toGo >= 8 && OFFP[id].kind === "run" ? -1 : 0) + (S.toGo <= 2 && id === "dp" ? -1 : 0); if (e > be) { be = e; best = id; } });
+    if (best && be - cur >= 2 && rand() < .65) S.aud = { from: S.offCall, to: best }, S.offCall = best;
+  }
+  // Each coordinator's last package is remembered as the default for their next call
+  function pkgMem(t) { S.pkgMem = S.pkgMem || {}; return (S.pkgMem[t] = S.pkgMem[t] || { off: "p11", def: "nickel" }); }
+  function lock() {
+    if (!S.sel) return;
+    if (S.side === "off") { S.offPkg = S.pkgSel || "p11"; pkgMem(S.poss).off = S.offPkg; }
+    else { S.defPkg = S.pkgSel || "nickel"; pkgMem(1 - S.poss).def = S.defPkg; }
+    if (S.side === "off") { S.offCall = S.sel; S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
+    else { S.defCall = S.sel; afterDef(); }
+  }
+  function resolve() {
+    let r;
+    if (S.twoPt) { resolveTwo(); return; }
+    if (S.aud && S.wasRunning && S.clock > 8) tick(ri(2, 4)); // changing the play at the line uses up play clock
+    const pre = snapState();
+    const noFlags = S.offCall === "punt" || S.offCall === "fg" || S.offCall === "kneel" || FAKE_IDS.includes(S.offCall);
+    const preCode = noFlags ? null : rollPreSnap(S.defCall);
+    if (preCode) r = doPreSnap(preCode, pre);
+    else if (S.offCall === "punt") r = doPunt();
+    else if (S.offCall === "fg") r = doFG();
+    else if (S.offCall === "kneel") r = doKneel();
+    else if (FAKE_IDS.includes(S.offCall)) r = doFake(S.offCall);
+    else r = doScrimmage();
+    r.offId = S.offCall; r.defId = S.defCall; r.team = S.snap.poss; r.aud = S.aud;
+    if (!r.opk) { r.opk = S.offPkg; r.dpk = S.defPkg; }
+    if (r.m != null && !r.preSnap) { r.s = playScore(r, S.snap); r.read = verdict(r, S.snap); }
+    if (S.aud) r.audNote = audNote();
+    else if (S.look && S.look.fake && !r.preSnap && OFFP[S.offCall]) r.audNote = `The defense disguised it: they showed ${LOOKS[S.look.d].name.toLowerCase()} but played ${DEFP[S.defCall].name}.`;
+    if (!noFlags && !preCode) {
+      const code = rollLive(S.offCall, S.defCall, r);
+      if (code) { setupPenalty(code, r, pre); return; }
+    }
+    finalize(r);
+  }
+  function audNote() {
+    const a = S.aud, f = OFFP[a.from].name, t = OFFP[a.to].name, gain = edgeVs(a.to, S.defCall) - edgeVs(a.from, S.defCall);
+    const fake = S.look && S.look.fake ? ` The defense showed ${LOOKS[S.look.d].name.toLowerCase()} but played ${DEFP[S.defCall].name}.` : "";
+    if (gain >= 1) return `Smart check at the line. ${t} was a better call than ${f} against ${DEFP[S.defCall].name}.${fake}`;
+    if (gain <= -1) return `The audible backfired. ${f} would have been the better call against ${DEFP[S.defCall].name}.${fake}`;
+    return `Audible from ${f} to ${t}. About even against ${DEFP[S.defCall].name}.${fake}`;
+  }
+  function finalize(r) {
+    if (r.preSnap) { r.oob = true; finishClock(r, !S.wasRunning); }
+    else {
+      const scored = S.teams[0].score + S.teams[1].score !== S.snap.total;
+      finishClock(r, !r.accepted && (r.head === "Incomplete" || S.poss !== S.snap.poss || scored || S.needPAT || S.offCall === "punt" || S.offCall === "fg"));
+    }
+    r.id = S.playId = (S.playId || 0) + 1;
+    S.last = r; S.phase = "result"; S.banner = "";
+    S.log.unshift({ q: S.snap.q, clock: S.snap.clock, team: S.snap.poss, sit: S.snap.sit,
+      off: S.offCall === "punt" ? "Punt" : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
+      def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
+  }
+  function cont() {
+    if (S.tryChoice) {
+      const c = S.tryChoice; S.patTeam = c.team;
+      if (S.teams[c.team].cpu) { S.tryChoice = null; if (cpuTry(c) === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); }
+      else S.phase = "trychoice";
+      return;
+    }
+    if (S.retryTwo) { const c = S.retryTwo; S.retryTwo = null; S.patTeam = c.team; startTwo(c.spot); return; }
+    if (S.kickChoice) { S.phase = "kickchoice"; return; }
+    if (S.needPAT) {
+      S.needPAT = false;
+      if (S.teams[S.patTeam].cpu) doPAT(cpuPAT()); else S.phase = "pat";
+      return;
+    }
+    if (!S.periodOver && !S.gameOver) {
+      cpuClock();
+      if (S.clockRunning) {
+        const res = runoff(S.spikeNext ? ri(8, 14) : S.oobRestart ? ri(15, 22) : (S.last && S.last.offId === "kneel") ? ri(38, 40) : ri(30, 38));
+        if (res === "tmw" && S.spikeNext) { S.spikeNext = false; S.banner = "Two-minute warning. The clock stopped on its own, so no spike needed."; }
+      }
+      S.oobRestart = false; S.toNote = "";
+      if (S.spikeNext && !S.periodOver) { doSpike(); return; }
+      S.spikeNext = false;
+    }
+    S.wasRunning = S.clockRunning;
+    S.clockRunning = false;
+    if (S.periodOver) endPeriod();
+    if (S.gameOver) { S.phase = "final"; return; }
+    startPlay();
+  }
+  function doSpike() {
+    const o = S.poss;
+    S.spikeNext = false;
+    tick(1);
+    S.down++;
+    const r = { read: null, team: o, offId: "spike", defId: null, fromX: fx(o, S.spot), toX: fx(o, S.spot), head: "Spike", tone: "",
+      text: `${name(o)} hurry to the line and spike the ball to stop the clock.`, sub: `${downText()} at the ${spotText(o, S.spot)}.` };
+    r.id = S.playId = (S.playId || 0) + 1;
+    finishClock(r, true);
+    S.last = r; S.phase = "result"; S.banner = "";
+    S.log.unshift({ q: S.quarter, clock: S.clock, team: o, sit: "Clock play", off: "Spike", def: "", text: r.text + " " + r.sub, score: `${S.teams[0].score}-${S.teams[1].score}` });
+  }
+  function callTimeout(t) {
+    if (!S.clockRunning || !S.tos || S.tos[t] <= 0) return false;
+    S.tos[t]--; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false;
+    S.toNote = `Timeout, ${name(t)}. ${S.tos[t]} left this ${S.quarter >= 5 ? "overtime" : "half"}.`;
+    S.log.unshift({ q: S.quarter, clock: S.clock, team: t, sit: "Timeout", off: "Timeout", def: "", text: S.toNote, score: `${S.teams[0].score}-${S.teams[1].score}` });
+    return true;
+  }
+  // Computer coordinators manage their own clock: timeouts when they need time, spikes when out of timeouts
+  function cpuClock() {
+    if (!S.clockRunning) return;
+    for (const t of [0, 1]) {
+      if (!S.teams[t].cpu || !S.clockRunning || S.tos[t] <= 0) continue;
+      const diff = S.teams[t].score - S.teams[1 - t].score, onO = t === S.poss;
+      const late4 = S.quarter >= 4 && S.clock <= 180, late2 = S.quarter === 2 && S.clock <= 120;
+      if (onO && ((late4 && diff <= 0) || (late2 && S.spot >= 45))) callTimeout(t);
+      else if (!onO && late4 && diff < 0) callTimeout(t);
+    }
+    const o = S.poss, diff = S.teams[o].score - S.teams[1 - o].score;
+    if (S.clockRunning && S.teams[o].cpu && S.down <= 3 && S.tos[o] === 0 &&
+        ((S.quarter >= 4 && diff <= 0 && S.clock <= 60) || (S.quarter === 2 && S.clock <= 40 && S.spot >= 55))) S.spikeNext = true;
+  }
+  function endPeriod() {
+    S.periodOver = false; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false; S.toNote = "";
+    const q = S.quarter;
+    if (q === 1 || q === 3) { S.quarter++; S.clock = S.cfg.qLen; S.banner = `End of the ${q === 1 ? "1st" : "3rd"} quarter.`; }
+    else if (q === 2) { S.quarter = 3; S.clock = S.cfg.qLen; S.tos = [3, 3]; const r = 1 - S.firstRecv; S.banner = `Halftime. ${name(r)} receive the second-half kickoff. ${kickoff(r, false)}`; }
+    else if (q === 4) {
+      if (S.teams[0].score === S.teams[1].score) {
+        S.quarter = 5; S.clock = S.cfg.qLen; S.tos = [2, 2]; const r = rand() < .5 ? 0 : 1;
+        S.banner = `Tied after regulation. Sudden-death overtime: first score wins. ${name(r)} win the toss and receive. ${kickoff(r, false)}`;
+      } else S.gameOver = true;
+    } else S.gameOver = true;
+  }
+
+  /* ---------- Simulation ---------- */
+  // Who won the snap is judged by what actually happened, then explained with the call matchup.
+  function playScore(r, snap) {
+    if (r.head === "Touchdown") return 2;
+    if (r.tod || ["Picked off", "Pick six", "Fumble", "Scoop & score", "Safety", "Sack"].includes(r.head)) return -2;
+    if (r.head === "Incomplete") return -1;
+    const y = r.y, toGo = snap.toGo;
+    if (y < 0) return -2;
+    if (y === 0) return -1;
+    if (y >= 15 || (y >= toGo && y >= 10)) return 2;
+    if (y >= 10) return 1;
+    const need = snap.down === 1 ? .4 * toGo : snap.down === 2 ? .6 * toGo : toGo;
+    return y >= need ? 1 : -1;
+  }
+  function verdict(r, snap) {
+    const v = verdictCalls(r, snap), pe = r.pe || 0;
+    if (Math.abs(pe) >= 1 && OFF_PKGS[r.opk] && DEF_PKGS[r.dpk])
+      v.t += ` ${OFF_PKGS[r.opk].name} against ${DEF_PKGS[r.dpk].name} ${pe > 0 ? "gave the offense an edge" : "favored the defense"}.`;
+    return v;
+  }
+  function verdictCalls(r, snap) {
+    const s = playScore(r, snap), m = r.mc != null ? r.mc : r.m, on = OFFP[r.offId].name, dn = DEFP[r.defId].name;
+    if (s > 0) {
+      if (m > 0) return { c: "o", t: s === 2 ? `Offense wins the call. ${on} beats ${dn}.` : `Offense wins the snap. ${on} was the right call against ${dn}.` };
+      if (m === 0) return { c: "o", t: s === 2 ? "Offense wins the snap with a big play." : "Offense wins the snap." };
+      return { c: "o", t: `Offense wins the snap anyway. ${dn} had ${on} covered on paper, but they made it work.` };
+    }
+    if (m < 0) return { c: "d", t: s === -2 ? `Defense wins the call. ${dn} shuts down ${on}.` : `Defense wins the snap. ${dn} was the right call against ${on}.` };
+    if (m === 0) return { c: "d", t: s === -2 ? "Defense wins the snap with a big stop." : "Defense wins the snap." };
+    return { c: "d", t: `Defense wins the snap anyway. ${on} had ${dn} beat on paper, but the defense made the play.` };
+  }
+
+  const INT_SCALE = .8; // interceptions trimmed 20% after the full-game simulation check
+  // The dice for one snap: yards, and whether it was a sack, interception, incompletion or fumble
+  function rollPlay(off, def, opk, dpk) {
+    opk = opk || "p11"; dpk = dpk || "nickel";
+    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), m = clamp(M[off][def] + pe, -3, 3);
+    const OP = OFF_PKGS[opk] || {}, compMul = (OP.comp || {})[off] || 1;
+    let y = 0, time = 0, fumble = false, int = false, sack = false, inc = false, oob = false;
+    if (P.kind === "run") {
+      let tfl = Math.max(.02, P.tfl - .05 * m) + (m <= -2 ? .12 : 0);
+      if (rand() < tfl) y = -ri(1, 4);
+      else {
+        y = Math.max(-2, Math.round(normal(P.mean + 1.8 * m, P.sd)));
+        if (rand() < Math.max(.005, P.big + .025 * m)) y += ri(12, 45);
+      }
+      fumble = rand() < P.fum * (m <= -2 ? 2 : 1);
+      oob = rand() < P.oob;
+      time = ri(4, 7);
+    } else {
+      const sackP = Math.max(.005, P.sack + ((SACK[def] || {})[off] || 0) + (OP.sack || 0));
+      if (rand() < sackP) { sack = true; y = -ri(3, 9); fumble = rand() < .08; time = ri(5, 8); }
+      else {
+        const intP = clamp(P.int * INT_SCALE * (1 - .3 * m), .003, .1), compP = clamp((P.comp + .09 * m) * compMul, .04, .93), roll = rand();
+        if (roll < intP) { int = true; time = ri(6, 11); }
+        else if (roll < intP + compP) {
+          y = Math.max(P.min, Math.round(normal(P.mean + (P.deep ? 3 : 2) * m, P.sd)));
+          if (m >= 1 && rand() < .07 * m) y += P.noBig ? ri(1, 4) : ri(10, 35);
+          fumble = rand() < .008; oob = rand() < .2;
+          time = ri(5, 9);
+        } else { inc = true; time = ri(4, 7); }
+      }
+    }
+    return { y, time, fumble, int, sack, inc, oob, m, pe };
+  }
+  function doScrimmage() {
+    const o = S.poss, d = 1 - o, off = S.offCall, def = S.defCall, P = OFFP[off];
+    const roll = rollPlay(off, def, S.offPkg, S.defPkg), m = roll.m;
+    const st = S.teams[o].st, from = S.spot;
+    st.plays++;
+    const r = { read: null, m, fromX: fx(o, from), tone: "", sub: "" };
+    let { y, time, fumble, int, sack, inc, oob } = roll, text = "";
+    Object.assign(r, { mc: M[off][def], pe: roll.pe, opk: S.offPkg, dpk: S.defPkg });
+    tick(time);
+    r.oob = oob;
+
+    // Interception
+    if (int) {
+      st.to++;
+      const raw = from + P.air + ri(-2, 4);
+      if (raw >= 100) {
+        startDrive(d, 20);
+        Object.assign(r, { head: "Picked off", tone: "bad", text: `${P.name} is intercepted in the end zone. Touchback.`, toX: fx(d, 20) });
+        r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, 20)}.`;
+        return r;
+      }
+      const iSpot = clamp(raw, 1, 99);
+      const ret = rand() < .05 ? ri(30, 100) : ri(0, 18);
+      const dSpot = 100 - iSpot + ret;
+      if (dSpot >= 100) {
+        score(d, 6); S.needPAT = !S.gameOver; S.patTeam = d;
+        Object.assign(r, { head: "Pick six", tone: "bad", text: `${P.name} is intercepted and returned all the way. ${name(d)} touchdown!`, toX: fx(d, 100) });
+        return r;
+      }
+      startDrive(d, dSpot);
+      Object.assign(r, { head: "Picked off", tone: "bad", text: `${P.name} is intercepted${ret ? ` and returned ${yd(ret)}` : ""}.`, toX: fx(d, S.spot) });
+      r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, S.spot)}.`;
+      return r;
+    }
+
+    let ns = from + y;
+    if (ns >= 100) y = 100 - from;
+    st.yds += y; if (P.kind === "run") st.rush += y; else st.pass += y;
+
+    // Base narration
+    if (sack) text = `Sacked for a loss of ${-y}.`;
+    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", te: "The throw to the tackle falls incomplete." }[off];
+    else if (P.kind === "run") {
+      if (ns >= 100) text = `${P.name}, ${yd(y)}, into the end zone!`;
+      else if (y < 0) text = `${P.name} is stuffed in the backfield for a loss of ${-y}.`;
+      else if (y === 0) text = `${P.name} goes nowhere. No gain.`;
+      else if (y >= 15) text = `${P.name} breaks loose for ${yd(y)}!`;
+      else text = `${P.name} for ${yd(y)}.`;
+      if (oob && ns < 100) text += " Pushed out of bounds.";
+    } else {
+      if (ns >= 100) text = `${P.name} complete, ${yd(y)}, for the score!`;
+      else if (y >= 20) text = `${P.name} connects for ${yd(y)}!`;
+      else text = `${P.name} complete for ${yd(y)}.`;
+      if (oob && ns < 100) text += " Out of bounds.";
+    }
+
+    // Touchdown
+    if (ns >= 100) {
+      score(o, 6); S.needPAT = !S.gameOver; S.patTeam = o;
+      Object.assign(r, { head: "Touchdown", tone: "good", text, toX: fx(o, 100) });
+      if (S.gameOver) r.sub = `${name(o)} win it in overtime!`;
+      return r;
+    }
+    // Fumble
+    if (fumble) {
+      st.to++;
+      const fs = clamp(ns, 1, 99);
+      const ret = rand() < .03 ? 100 : ri(0, 8);
+      const dSpot = 100 - fs + ret;
+      text += " Fumble! The defense recovers.";
+      if (dSpot >= 100) {
+        score(d, 6); S.needPAT = !S.gameOver; S.patTeam = d;
+        Object.assign(r, { head: "Scoop & score", tone: "bad", text: text + ` Returned for a ${name(d)} touchdown!`, toX: fx(d, 100) });
+        return r;
+      }
+      startDrive(d, dSpot);
+      Object.assign(r, { head: "Fumble", tone: "bad", text, toX: fx(d, S.spot) });
+      r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, S.spot)}.`;
+      return r;
+    }
+    // Safety
+    if (ns <= 0) {
+      score(d, 2);
+      if (!S.gameOver) startDrive(d, 35);
+      Object.assign(r, { head: "Safety", tone: "bad", text: text + ` Brought down in the end zone. 2 points for ${name(d)}.`, toX: fx(o, 0) });
+      if (!S.gameOver) r.sub = `${name(d)} get the ball back at their own 35 after the free kick.`;
+      return r;
+    }
+    // Normal result
+    r.toX = fx(o, ns); r.y = y;
+    r.head = sack ? "Sack" : inc ? "Incomplete" : y > 0 ? `+${y}` : y < 0 ? `−${-y}` : "No gain";
+    r.tone = (sack || y < 0) ? "bad" : (y >= S.toGo || y >= 10) ? "good" : "";
+    r.text = text;
+    if (y >= S.toGo) {
+      S.spot = ns; S.down = 1; S.toGo = Math.min(10, 100 - ns); st.fd++;
+      r.sub = `First down! ${downText()} at the ${spotText(o, S.spot)}.`;
+    } else {
+      S.down++; S.spot = ns; S.toGo = Math.min(S.toGo - y, 100 - ns);
+      if (S.down > 4) {
+        startDrive(d, 100 - ns); r.tone = "bad"; r.tod = true;
+        r.sub = `Turnover on downs. ${name(d)} take over at the ${spotText(d, S.spot)}.`;
+        if (r.head.startsWith("+") || r.head === "No gain" || r.head === "Incomplete") r.head = "Stopped";
+      } else r.sub = `${downText()} at the ${spotText(o, S.spot)}.`;
+    }
+    return r;
+  }
+
+  /* ---------- Penalties ---------- */
+  const PEN = {
+    fs: { name: "False start", on: "off", yds: 5, pre: true },
+    dg: { name: "Delay of game", on: "off", yds: 5, pre: true },
+    os: { name: "Offside", on: "def", yds: 5 },
+    oh: { name: "Holding", on: "off", yds: 10 },
+    dh: { name: "Defensive holding", on: "def", yds: 5, auto: true },
+    dpi: { name: "Pass interference", on: "def", spot: true, auto: true },
+    opi: { name: "Offensive pass interference", on: "off", yds: 10 },
+    rtp: { name: "Roughing the passer", on: "def", yds: 15, auto: true },
+    fm: { name: "Face mask", on: "def", yds: 15, auto: true },
+    idf: { name: "Ineligible man downfield", on: "off", yds: 5 }
+  };
+  const FLAG_RATE = 1.2; // tuned so about 1 snap in 12 draws a flag, close to the NFL
+  function pickFrom(w) { let x = rand() / FLAG_RATE; for (const k in w) { x -= w[k]; if (x < 0) return k; } return null; }
+  // Fouls before the snap (the play never runs)
+  function rollPreSnap(def) {
+    // A play changed at the line is more likely to end in confusion: a false start or the play clock running out
+    return pickFrom({ fs: .008 + (S.aud ? .009 : 0), dg: .003 + (S.aud ? .007 : 0) });
+  }
+  // Fouls during the play depend on the matchup
+  function rollLive(off, def, r) {
+    const P = OFFP[off], thrown = P.kind === "pass" && r.head !== "Sack";
+    const complete = thrown && !["Incomplete", "Picked off", "Pick six"].includes(r.head);
+    const w = {};
+    // Offside: the play runs anyway (a "free play"). Blitzing defenses jump more often.
+    w.os = .004 + (def === "rb" ? .006 : def === "ab" || def === "blk" ? .01 : 0);
+    w.oh = P.kind === "run" ? (off === "or" ? .034 : .028) : (P.deep ? .035 : .016);
+    if (def === "rb" || def === "ab" || def === "blk") w.oh += .008;
+    if (thrown) w.dh = .008 + (def === "ma" ? .012 : def === "zo" ? .004 : 0);
+    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
+    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005 }[off]) * (def === "ma" ? 1.5 : 1);
+    if (thrown) w.rtp = def === "ab" ? .012 : def === "rb" ? .004 : .0015;
+    w.fm = P.kind === "run" ? .004 : complete ? .002 : 0;
+    if (S.offPkg === "jumbo" && thrown) w.idf = .015;
+    return pickFrom(w);
+  }
+  function snapState() {
+    return JSON.parse(JSON.stringify({ poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, needPAT: S.needPAT, patTeam: S.patTeam,
+      gameOver: S.gameOver, scores: [S.teams[0].score, S.teams[1].score], st: [S.teams[0].st, S.teams[1].st] }));
+  }
+  function applyState(x) {
+    S.poss = x.poss; S.spot = x.spot; S.down = x.down; S.toGo = x.toGo; S.needPAT = x.needPAT; S.patTeam = x.patTeam; S.gameOver = x.gameOver;
+    [0, 1].forEach(i => { S.teams[i].score = x.scores[i]; S.teams[i].st = JSON.parse(JSON.stringify(x.st[i])); });
+  }
+  const downTextOf = x => `${ord(x.down)} & ${x.spot + x.toGo >= 100 ? "Goal" : x.toGo}`;
+  // Enforce a foul from the previous spot (or the spot of the foul for pass interference), with half-the-distance near the goal lines
+  function enforce(code, base, endOfPlay) {
+    const pen = PEN[code], s = JSON.parse(JSON.stringify(base)), L = s.spot;
+    let yds, half = false, desc;
+    if (pen.on === "off") {
+      yds = Math.min(pen.yds, Math.floor(L / 2)); half = yds < pen.yds;
+      s.spot = L - yds; s.toGo = Math.min(s.toGo + yds, 100 - s.spot);
+      desc = `${yds}-yard penalty${half ? ", half the distance to the goal" : ""}. Replay ${ord(s.down)} down.`;
+    } else {
+      if (pen.spot) {
+        const air = OFFP[S.offCall].air + ri(-2, 9);
+        s.spot = Math.min(99, Math.max(L + 1, L + air)); yds = s.spot - L;
+        desc = s.spot === 99 && L + air >= 100 ? "Foul in the end zone. Ball at the 1." : `Spot foul, ${yd(yds)}.`;
+      } else {
+        yds = Math.min(pen.yds, Math.floor((100 - L) / 2)); half = yds < pen.yds;
+        s.spot = Math.min(L + yds, 99);
+        desc = endOfPlay ? `${yds} yards added to the end of the play${half ? " (half the distance to the goal)" : ""}.` : `${yds}-yard penalty${half ? ", half the distance to the goal" : ""}.`;
+      }
+      if (pen.auto) { s.down = 1; s.toGo = Math.min(10, 100 - s.spot); desc += " Automatic first down."; }
+      else {
+        s.toGo = Math.min(s.toGo - yds, 100 - s.spot);
+        if (s.toGo <= 0) { s.down = 1; s.toGo = Math.min(10, 100 - s.spot); desc += " First down."; }
+        else desc += ` Replay ${ord(s.down)} down.`;
+      }
+    }
+    return { s, yds, desc };
+  }
+  function doPreSnap(code, pre) {
+    const pen = PEN[code], o = S.snap.poss, offender = pen.on === "off" ? o : 1 - o;
+    const e = enforce(code, pre);
+    applyState(e.s);
+    S.teams[offender].st.pen++; S.teams[offender].st.penYds += e.yds;
+    return { preSnap: true, m: null, head: "Flag", tone: pen.on === "off" ? "bad" : "good", s: pen.on === "off" ? -1 : 1,
+      read: { c: pen.on === "off" ? "d" : "o", t: pen.on === "off" ? "Pre-snap flag on the offense." : "Pre-snap flag on the defense." },
+      text: `${pen.name}, ${pen.on === "off" ? "offense" : "defense"} (${abbr(offender)}). Whistled dead before the snap.`,
+      sub: `${e.desc} ${downText()} at the ${spotText(S.poss, S.spot)}.`, fromX: fx(o, pre.spot), toX: fx(o, S.spot) };
+  }
+  // How good a game state is for one team: points first, then field position and down
+  function stateValue(x, team) {
+    const pts = i => x.scores[i] + (x.needPAT && x.patTeam === i ? .95 : 0);
+    if (x.gameOver) return x.scores[team] > x.scores[1 - team] ? 999 : -999;
+    let v = pts(team) - pts(1 - team);
+    if (!x.needPAT) {
+      let ep = (x.spot - 25) / 15 - (x.down - 1) * .5 - (Math.min(x.toGo, 20) - 10) * .07;
+      if (x.down === 4) ep -= .8;
+      v += x.poss === team ? ep : -ep;
+    }
+    return v;
+  }
+  function setupPenalty(code, r, pre) {
+    const pen = PEN[code], o = S.snap.poss, offender = pen.on === "off" ? o : 1 - o, chooser = 1 - offender;
+    const post = snapState();
+    // Roughing the passer and face mask on a play that gained yards are added to the end of the play; otherwise from the previous spot
+    const endOfPlay = (code === "rtp" || code === "fm") && r.y > 0 && post.poss === pre.poss && !post.needPAT && !post.gameOver &&
+      post.scores[0] === pre.scores[0] && post.scores[1] === pre.scores[1];
+    const e = enforce(code, endOfPlay ? post : pre, endOfPlay);
+    S.pen = { code, offender, chooser, r, pre, post, endOfPlay, acc: e.s, accDesc: e.desc, accYds: e.yds, periodOver: S.periodOver };
+    if (S.teams[chooser].cpu) choosePenalty(stateValue(e.s, chooser) > stateValue(S.pen.post, chooser));
+    else S.phase = "penalty";
+  }
+  function choosePenalty(accept) {
+    const P = S.pen; if (!P) return;
+    if (P.two) { chooseTwoPenalty(accept); return; }
+    S.pen = null;
+    const pen = PEN[P.code], who = `${pen.on === "off" ? "offense" : "defense"} (${abbr(P.offender)})`;
+    let r = P.r;
+    if (accept) {
+      applyState(P.acc);
+      S.teams[P.offender].st.pen++; S.teams[P.offender].st.penYds += P.accYds;
+      let untimed = false;
+      // A half can't end on an accepted defensive foul: one untimed down
+      if (pen.on === "def" && P.periodOver && S.clock === 0) { S.periodOver = false; untimed = true; }
+      r = { offId: r.offId, defId: r.defId, opk: r.opk, dpk: r.dpk, team: r.team, aud: r.aud, audNote: r.audNote, m: null, accepted: true, oob: true, head: "Flag", tone: pen.on === "off" ? "bad" : "good",
+        s: pen.on === "off" ? -2 : 2, fromX: r.fromX, toX: fx(S.poss, S.spot),
+        read: { c: pen.on === "off" ? "d" : "o", t: pen.on === "off" ? "A flag on the offense wipes out the play." : P.endOfPlay ? "A flag on the defense adds 15 yards to the gain." : "A flag on the defense hands the offense free yards." },
+        text: P.endOfPlay ? `${r.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, and the gain stands.` : `${r.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, so the play doesn't count.`,
+        sub: `${P.accDesc} ${downText()} at the ${spotText(S.poss, S.spot)}.${untimed ? " The half can't end on a defensive penalty, so there will be one untimed down." : ""}` };
+    } else {
+      applyState(P.post);
+      r.sub = `${r.sub ? r.sub + " " : ""}Flag: ${pen.name} on the ${who}. Declined.`;
+    }
+    finalize(r);
+  }
+  function doKneel() {
+    const o = S.poss, d = 1 - o, st = S.teams[o].st, from = S.spot;
+    st.plays++;
+    tick(ri(1, 2));
+    const y = from > 1 ? -1 : 0;
+    st.yds += y; st.rush += y;
+    const r = { read: null, fromX: fx(o, from), toX: fx(o, from + y), head: "Kneel", tone: "", y };
+    const victory = S.clock <= 40;
+    r.text = victory ? `Victory formation. ${name(o)} take a knee.` : `${name(o)} take a knee${y ? " for a loss of 1" : ""}. The clock keeps running.`;
+    S.spot = from + y; S.down++; S.toGo = Math.min(S.toGo - y, 100 - S.spot);
+    if (S.down > 4) { startDrive(d, 100 - S.spot); r.tod = true; r.sub = `Turnover on downs. ${name(d)} take over at the ${spotText(d, S.spot)}.`; }
+    else r.sub = `${downText()} at the ${spotText(o, S.spot)}.`;
+    return r;
+  }
+  function doPunt() {
+    const o = S.poss, d = 1 - o, from = S.spot;
+    const r = { read: null, fromX: fx(o, from), tone: "" };
+    tick(ri(9, 13));
+    const dc = S.defCall;
+    if (dc === "blk" && rand() < .04) return roughKicker(r, "punt");
+    if (rand() < (dc === "blk" ? .08 : dc === "ab" ? .05 : .01)) {
+      const bs = Math.max(from - 7, 1);
+      startDrive(d, 100 - bs);
+      Object.assign(r, { head: "Blocked!", tone: "bad", text: `The punt is blocked! ${name(d)} recover at the ${spotText(d, S.spot)}.`, toX: fx(d, S.spot) });
+      return r;
+    }
+    // With no return unit on the field the ball is left to roll; a return unit sets up a real runback
+    const roll = dc === "ret" || dc === "blk" ? 0 : ri(2, 8);
+    const dist = Math.round(normal(43, 6)) + roll, land = from + dist;
+    if (land >= 100) {
+      startDrive(d, 20);
+      Object.assign(r, { head: "Punt", text: `Punt of ${yd(100 - from)} into the end zone. Touchback.`, toX: fx(d, 20) });
+    } else {
+      if (dc === "ret" && rand() < .015) {
+        score(d, 6); S.needPAT = !S.gameOver; S.patTeam = d;
+        Object.assign(r, { head: "Return TD", tone: "bad", text: `Punt of ${yd(dist)}, and it's returned all the way! ${name(d)} touchdown!`, toX: fx(d, 100) });
+        return r;
+      }
+      const ret = dc === "ret" ? (rand() < .08 ? ri(18, 40) : ri(2, 14)) : dc === "blk" ? ri(0, 5) : 0;
+      startDrive(d, Math.min(100 - land + ret, 99));
+      Object.assign(r, { head: "Punt", text: `Punt of ${yd(dist)}${ret ? `, returned ${yd(ret)}` : dc === "ret" || dc === "blk" ? ", fair catch" : ". Nobody back to return it, so it rolls"}.`, toX: fx(d, S.spot) });
+    }
+    r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, S.spot)}.`;
+    return r;
+  }
+
+  function doFG() {
+    const o = S.poss, d = 1 - o, from = S.spot, dist = kickDist();
+    const r = { read: null, fromX: fx(o, from), tone: "" };
+    tick(ri(4, 6));
+    const dc = S.defCall, rush = dc === "ab" || dc === "blk";
+    const blocked = rand() < (dc === "blk" ? .09 : dc === "ab" ? .04 : .01);
+    const good = !blocked && rand() < fgProb(dist) - (rush ? .04 : 0);
+    // Roughing the kicker on a miss: the offense keeps the ball (on a make they just take the points)
+    if (!good && dc === "blk" && rand() < .12) return roughKicker(r, "fg");
+    if (good) {
+      score(o, 3);
+      Object.assign(r, { head: "It's good", tone: "good", text: `${dist}-yard field goal is good. 3 points for ${name(o)}.`, toX: fx(o, 110) });
+      r.sub = S.gameOver ? `${name(o)} win it in overtime!` : kickAfterScore(o);
+    } else {
+      startDrive(d, Math.max(100 - (from - 8), 20));
+      Object.assign(r, { head: blocked ? "Blocked!" : "No good", tone: "bad", text: blocked ? `The ${dist}-yard try is blocked!` : `The ${dist}-yard try is ${rand() < .5 ? "wide left" : "wide right"}.`, toX: fx(d, S.spot) });
+      r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, S.spot)}.`;
+    }
+    return r;
+  }
+
+  function roughKicker(r, kind) {
+    const o = S.poss, d = 1 - o, st = S.teams[d].st, from = S.spot;
+    const yds = Math.min(15, Math.floor((100 - from) / 2));
+    S.spot = Math.min(99, from + yds); S.down = 1; S.toGo = Math.min(10, 100 - S.spot);
+    st.pen++; st.penYds += yds;
+    return Object.assign(r, { head: "Flag", tone: "good", s: 2, toX: fx(o, S.spot), accepted: true,
+      read: { c: "o", t: "Selling out for the block cost the defense." },
+      text: `${kind === "punt" ? "The punter" : "The kicker"} gets run into. Roughing the kicker, defense (${abbr(d)}).`,
+      sub: `${yds}-yard penalty. Automatic first down. ${downText()} at the ${spotText(o, S.spot)}.` });
+  }
+  // Fake punt / fake field goal: works when the defense sold out for the kick, rarely when they kept a real defense out there
+  function doFake(kind) {
+    const o = S.poss, d = 1 - o, st = S.teams[o].st, from = S.spot, def = S.defCall, isPunt = kind === "fp";
+    st.plays++; tick(ri(5, 8));
+    const pOK = def === "blk" ? .72 : def === "ret" ? .5 : .18;
+    const ok = rand() < pOK, pass = rand() < .5;
+    let y = ok ? S.toGo + ri(0, 7) + (rand() < .15 ? ri(10, 40) : 0) : ri(-4, Math.max(-1, S.toGo - 1));
+    const r = { fromX: fx(o, from), tone: "", s: ok ? 2 : -2 };
+    const who = isPunt ? "The punter" : "The holder";
+    let text = pass ? `Fake! ${who} throws` : `Fake! ${who} takes off running`;
+    let ns = from + y;
+    if (ns >= 100) { y = 100 - from; ns = 100; }
+    if (pass && !ok && rand() < .5) { y = 0; ns = from; text += ", but it falls incomplete."; }
+    else text += ok ? ` and picks up ${yd(y)}!` : y > 0 ? ` but only gets ${yd(y)}.` : ` and is dropped${y < 0 ? ` for a loss of ${-y}` : " at the line"}.`;
+    st.yds += y; if (pass) st.pass += y; else st.rush += y;
+    r.read = ok ? { c: "o", t: `The fake caught ${DEFP[def].name} napping.` }
+      : { c: "d", t: def === "blk" || def === "ret" ? "Sold out for the kick and still stopped it." : `${DEFP[def].name} stayed home and sniffed out the fake.` };
+    if (ns >= 100) {
+      score(o, 6); S.needPAT = !S.gameOver; S.patTeam = o;
+      return Object.assign(r, { head: "Touchdown", tone: "good", text: text.replace(/!$/, ", all the way for a touchdown!"), toX: fx(o, 100) });
+    }
+    if (ns <= 0) {
+      score(d, 2); if (!S.gameOver) startDrive(d, 35);
+      return Object.assign(r, { head: "Safety", tone: "bad", text: text + ` Down in the end zone. 2 points for ${name(d)}.`, toX: fx(o, 0), sub: S.gameOver ? "" : `${name(d)} get the ball back at their own 35 after the free kick.` });
+    }
+    r.toX = fx(o, ns); r.y = y; r.text = text;
+    if (y >= S.toGo) {
+      S.spot = ns; S.down = 1; S.toGo = Math.min(10, 100 - ns); st.fd++;
+      r.head = "Fake works"; r.tone = "good"; r.sub = `First down! ${downText()} at the ${spotText(o, S.spot)}.`;
+    } else {
+      S.down++; S.spot = ns; S.toGo = Math.min(S.toGo - y, 100 - ns);
+      r.head = "Fake stopped"; r.tone = "bad";
+      if (S.down > 4) { startDrive(d, 100 - ns); r.tod = true; r.sub = `Turnover on downs. ${name(d)} take over at the ${spotText(d, S.spot)}.`; }
+      else r.sub = `${downText()} at the ${spotText(o, S.spot)}.`;
+    }
+    return r;
+  }
+
+  // ---- Point after touchdown ----
+  // Extra points are snapped 13 yards behind the two-point spot (the 15 vs. the 2), and kick distance adds 18
+  const xpDist = trySpot => 131 - trySpot;
+  const ydLine = spot => `${100 - spot}-yard line`;
+  function startTwo(spot) {
+    const t = S.patTeam;
+    S.twoPt = { team: t, spot: spot || 98 };
+    S.poss = t; S.spot = S.twoPt.spot; S.down = 1; S.toGo = 100 - S.spot;
+    startPlay();
+  }
+  function twoResult(r) {
+    if (!r.opk) { r.opk = S.offPkg; r.dpk = S.defPkg; }
+    if (S.aud && r.offId) { r.aud = S.aud; if (!r.audNote) r.audNote = audNote(); }
+    r.id = S.playId = (S.playId || 0) + 1;
+    S.clockRunning = false; S.oobRestart = false;
+    S.last = r; S.phase = "result"; S.banner = "";
+    S.log.unshift({ q: S.quarter, clock: S.clock, team: r.team, sit: "Two-point try", off: r.offId && OFFP[r.offId] ? OFFP[r.offId].name + (r.aud ? ` (audible from ${OFFP[r.aud.from].name})` : "") : "",
+      def: r.defId && DEFP[r.defId] ? DEFP[r.defId].name : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
+  }
+  function resolveTwo() {
+    const o = S.twoPt.team, spot = S.twoPt.spot, off = S.offCall, def = S.defCall, P = OFFP[off];
+    const flagBase = { pat: "flag", m: null, team: o, offId: off, defId: def, fromX: fx(o, spot) };
+    // Pre-snap foul by the offense: the try is backed up, then the offense chooses again
+    const preCode = rollPreSnap(def);
+    if (preCode) {
+      const pen = PEN[preCode], yds = Math.min(pen.yds, Math.floor(spot / 2)), ns = spot - yds;
+      S.teams[o].st.pen++; S.teams[o].st.penYds += yds;
+      S.twoPt = null; S.tryChoice = { team: o, spot: ns };
+      twoResult(Object.assign(flagBase, { head: "Flag", tone: "bad", s: -1, toX: fx(o, ns), read: { c: "d", t: "Pre-snap flag on the offense." },
+        text: `${pen.name}, offense (${abbr(o)}). Whistled dead before the snap.`,
+        sub: `The try moves back to the ${ydLine(ns)}. ${name(o)} can go for two again or kick the extra point.` }));
+      return;
+    }
+    const res = rollPlay(off, def, S.offPkg, S.defPkg), m = res.m;
+    // The end zone squeezes passing windows: some completions in open field are broken up here
+    if (P.kind === "pass" && !res.int && !res.sack && !res.inc && rand() < .12) { res.inc = true; res.y = 0; }
+    const need = 100 - spot;
+    const good = !res.int && !res.sack && !res.inc && !res.fumble && res.y >= need;
+    let text;
+    if (good) text = P.kind === "run" ? `${P.name} punches it in from the ${need}. The two-point try is good!` : `${P.name} pass is caught in the end zone. The two-point try is good!`;
+    else if (res.int) text = `${P.name} is intercepted. The two-point try fails.`;
+    else if (res.sack) text = "The quarterback is sacked. The two-point try fails.";
+    else if (res.fumble) text = `${P.name}, fumble! The two-point try fails.`;
+    else if (res.inc) text = `${P.name} pass falls incomplete. The two-point try fails.`;
+    else text = `${P.name} is stopped ${res.y <= 0 ? "at the line" : "short of the goal line"}. The two-point try fails.`;
+    const code = rollLive(off, def, { head: res.sack ? "Sack" : res.int ? "Picked off" : res.inc ? "Incomplete" : "+" + res.y });
+    if (code) {
+      const pen = PEN[code], offender = pen.on === "off" ? o : 1 - o, chooser = 1 - offender;
+      S.pen = { two: true, code, team: o, offender, chooser, good, res, text, spot, m, off, def, opk: S.offPkg, dpk: S.defPkg };
+      // Computer: the defense accepts an offensive foul only if the try was good; the offense accepts a defensive foul only if it failed
+      if (S.teams[chooser].cpu) chooseTwoPenalty(pen.on === "off" ? good : !good);
+      else S.phase = "penalty";
+      return;
+    }
+    finishTwo(good, res, text, "", m, off, def, spot);
+  }
+  function finishTwo(good, res, text, note, m, off, def, spot) {
+    const o = S.twoPt.team;
+    if (good) score(o, 2);
+    S.twoPt = null;
+    const ko = kickAfterScore(o);
+    const r = { pat: "two", m, mc: M[off][def], pe: res.pe, opk: S.offPkg, dpk: S.defPkg, team: o, offId: off, defId: def, fromX: fx(o, spot), toX: fx(o, good ? 100 : Math.min(99, spot + Math.max(res.y, -3))),
+      head: good ? "Two-point good" : "No good", tone: good ? "good" : "bad", text: note ? `${text} ${note}` : text, sub: ko, y: res.y };
+    if (!good) r.tod = true;
+    r.read = verdict(Object.assign({}, r, { head: good ? "Touchdown" : "Stopped" }), { down: 1, toGo: 2 });
+    r.s = good ? 2 : -2;
+    twoResult(r);
+  }
+  function chooseTwoPenalty(accept) {
+    const P = S.pen; S.pen = null;
+    const pen = PEN[P.code], o = P.team, who = `${pen.on === "off" ? "offense" : "defense"} (${abbr(P.offender)})`;
+    if (!accept) { S.offPkg = P.opk; S.defPkg = P.dpk; finishTwo(P.good, P.res, P.text, `Flag: ${pen.name} on the ${who}. Declined.`, P.m, P.off, P.def, P.spot); return; }
+    S.twoPt = null;
+    const base = { pat: "flag", m: null, team: o, offId: P.off, defId: P.def, fromX: fx(o, P.spot) };
+    if (pen.on === "off") {
+      const yds = Math.min(pen.yds, Math.floor(P.spot / 2)), ns = P.spot - yds;
+      S.teams[o].st.pen++; S.teams[o].st.penYds += yds;
+      S.tryChoice = { team: o, spot: ns };
+      twoResult(Object.assign(base, { head: "Flag", tone: "bad", s: -2, toX: fx(o, ns), read: { c: "d", t: "A flag on the offense wipes out the try." },
+        text: `${P.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, so the try doesn't count.`,
+        sub: `The try moves back to the ${ydLine(ns)}. ${name(o)} can go for two again or kick the extra point.` }));
+    } else {
+      // Defensive foul: half the distance to the goal, then replay the two-point try
+      const ns = Math.min(99, P.spot + Math.max(1, Math.floor((100 - P.spot) / 2)));
+      S.teams[1 - o].st.pen++; S.teams[1 - o].st.penYds += ns - P.spot;
+      S.retryTwo = { team: o, spot: ns };
+      twoResult(Object.assign(base, { head: "Flag", tone: "good", s: 2, toX: fx(o, ns), read: { c: "o", t: "A flag on the defense gives the offense another try, closer." },
+        text: `${P.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, so the try doesn't count.`,
+        sub: `Half the distance to the goal. The two-point try is replayed from the ${ydLine(ns)}.` }));
+    }
+  }
+  function cpuTry(c) {
+    const wantTwo = cpuPAT() === "two", p2 = Math.max(.15, .53 - (98 - c.spot) * .025);
+    return wantTwo && p2 >= .25 ? "two" : "kick";
+  }
+  function doPAT(kind, dist) {
+    if (kind === "two") { startTwo(); return; }
+    const t = S.patTeam, d = dist || 33;
+    const ok = rand() < (dist ? fgProb(d) : .94);
+    if (ok) score(t, 1);
+    const ko = kickAfterScore(t);
+    const r = { read: null, team: t, offId: "xp", defId: null, fromX: fx(t, 118 - d), toX: fx(t, ok ? 110 : 98),
+      head: ok ? "Extra point good" : "Extra point missed", tone: ok ? "good" : "bad",
+      text: dist ? (ok ? `The ${d}-yard extra point is good.` : `The ${d}-yard extra point is no good.`) : (ok ? "The extra point is through." : "The extra point clanks off the upright."),
+      sub: ko, pat: true };
+    r.id = S.playId = (S.playId || 0) + 1;
+    finishClock(r, true);
+    S.last = r; S.phase = "result";
+    S.log.unshift({ q: S.quarter, clock: S.clock, team: t, sit: "Extra point", off: "Kick", def: "", text: r.text, score: `${S.teams[0].score}-${S.teams[1].score}` });
+  }
+
+  /* ---------- Computer coordinator ---------- */
+  const RUN_BIAS = 3.3;
+  function cpuOffPkg() {
+    const diff = S.teams[S.poss].score - S.teams[1 - S.poss].score, late = S.quarter >= 4 && S.clock <= 180;
+    if (S.twoPt) return wpick({ p11: 2, p12: 2, p13: 1, jumbo: 1, p10: 1 });
+    if (S.toGo <= 1) return wpick({ jumbo: 3, p13: 2, p21: 2, p12: 1 });
+    if (late && diff < 0) return wpick({ p10: 3, p11: 4 });
+    if (S.toGo <= 3) return wpick({ p12: 3, p21: 2, p13: 1, p11: 2, jumbo: .5 });
+    if (S.toGo >= 8) return wpick({ p10: 3, p11: 5, p12: 1 });
+    return wpick({ p11: 5, p12: 2, p21: 1, p10: 1, p13: .7 });
+  }
+  function cpuDefPkg() {
+    const w = ({ p10: { dime: 3, nickel: 3, base: .3 }, p11: { nickel: 5, base: 1.5, dime: 1 }, p12: { base: 4, nickel: 2 },
+      p21: { base: 5, nickel: 1 }, p13: { base: 4, goal: 1 }, jumbo: { goal: 3, base: 2 } })[S.offPkg || "p11"];
+    const x = Object.assign({ base: 0, nickel: 0, dime: 0, goal: 0 }, w);
+    if (S.toGo >= 8) { x.dime += 2; x.nickel += 1; x.goal = 0; }
+    if (S.spot >= 95 || S.twoPt) x.goal += 2;
+    if (S.toGo <= 1) x.goal += 1.5;
+    return wpick(x);
+  }
+  // Scale play weights by how well each play suits the chosen package
+  function fitWeights(w) {
+    const f = PKG_FIT[S.offPkg] || {};
+    Object.keys(w).forEach(k => { w[k] *= Math.max(.12, 1 + .45 * (f[k] || 0)); });
+    if (S.offPkg === "jumbo") w.te = 1.2;
+    return w;
+  }
+  function cpuOff() {
+    if (S.twoPt) return wpick(fitWeights({ ir: 4, or: 1.5, sc: 1, sp: 3.5, dp: .3, pa: 2 }));
+    if (kneelAvailable()) {
+      const lead = S.teams[S.poss].score - S.teams[1 - S.poss].score;
+      if (lead > 0 || (lead === 0 && S.spot < 50)) return "kneel";
+    }
+    const me = S.poss, diff = S.teams[me].score - S.teams[1 - me].score;
+    const late = S.quarter >= 4 && S.clock <= 180;
+    const kd = kickDist();
+    const needTD = late && diff < -3;
+    if (fgAvailable() && S.down < 4 && !needTD && kd <= 55) return "fg";
+    if (S.down === 4) {
+      if (!needTD && kd <= 52 && (S.toGo > 2 || kd <= 35)) return "fg";
+      const goForIt = (late && diff < 0) || (S.toGo <= 1 && S.spot >= 45) || (S.spot >= 65 && S.toGo <= 3 && kd > 52);
+      if (!goForIt) {
+        // A rare fake when it's short yardage
+        if (S.toGo <= 4 && rand() < .04) return S.spot < 62 || kd > 58 ? "fp" : "ffg";
+        if (S.spot < 62) return "punt";
+        if (kd <= 58 && !needTD) return "fg";
+        if (S.toGo > 4) return "punt";
+      }
+    }
+    const w = { ir: 3, or: 2, sc: 1.5, sp: 3, dp: 1.5, pa: 2 };
+    if (S.toGo >= 8) { w.ir = 1; w.or = 1; w.sc += 1; w.sp += 2; w.dp += 2; w.pa += 1; }
+    if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dp = .7; }
+    if (S.spot >= 88) { w.dp = .3; w.ir += 1; }
+    if (late && diff < 0) { w.ir = .5; w.or = .5; w.dp += 2; w.sp += 1; }
+    fitWeights(w);
+    // Lean on the run: tuned so the computer runs on about 40% of its play calls
+    w.ir *= RUN_BIAS; w.or *= RUN_BIAS;
+    return wpick(w);
+  }
+  function cpuDef() {
+    // 4th down with a kick likely: often send out the return or block unit
+    if (S.down === 4 && (puntAvailable() || fgAvailable()) && !(S.toGo <= 2 && S.spot >= 40)) {
+      const x = rand();
+      if (puntAvailable() && S.spot < 62) { if (x < .55) return "ret"; if (x < .67) return "blk"; }
+      else if (fgAvailable() && x < .15) return "blk";
+    }
+    const w = { rb: 2, ba: 3, ma: 2, zo: 2, pr: 1, ab: 1 };
+    if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; }
+    if (S.toGo <= 2) { w.rb = 4; w.ba = 3; w.pr = .3; }
+    if (S.spot >= 88) { w.pr = .2; w.ab = 2; }
+    return wpick(w);
+  }
+  function cpuPAT() {
+    const t = S.patTeam, diff = S.teams[t].score - S.teams[1 - t].score;
+    return (S.quarter >= 4 && (diff === -2 || diff === 1 || diff === -5)) ? "two" : "kick";
+  }
+
+  /* ---------- Persistence ---------- */
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function loadSaved() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
+
+  /* ---------- Rendering ---------- */
+  function board() {
+    const t = S.teams, inGame = S.phase !== "final";
+    const team = i => `
+      <div class="bteam ${i ? "right" : ""}" style="--team:${t[i].color}">
+        <span class="stripe"></span>
+        <div class="id"><span class="abbr">${inGame && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].slice(0, S.quarter >= 5 ? 2 : 3).map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
+        <span class="pts">${t[i].score}</span>
+      </div>`;
+    return `<header class="board" aria-label="Scoreboard">
+      ${team(0)}
+      <div class="bmid"><span class="q">${S.phase === "final" ? "FINAL" : qLabel(S.quarter)}</span><span class="clk">${fmtClock(S.clock)}</span></div>
+      ${team(1)}
+      ${inGame ? `<div class="sit"><b>${S.twoPt && S.phase !== "result" ? "Two-point try" : downText()}</b><span>Ball on ${spotText(S.poss, S.spot)}</span></div>` : ""}
+    </header>`;
+  }
+  function field(opts) {
+    const t = S.teams, pct = x => ((10 + clamp(x, -9, 109)) / 120 * 100).toFixed(2) + "%";
+    let nums = "";
+    for (let x = 10; x <= 90; x += 10) nums += `<span class="yn" style="left:${pct(x)}">${x <= 50 ? x : 100 - x}</span>`;
+    let marks = "";
+    if (opts.los != null) marks += `<span class="mk los" style="left:${pct(opts.los)}"></span>`;
+    if (opts.fd != null) marks += `<span class="mk fd" style="left:${pct(opts.fd)}"></span>`;
+    if (opts.from != null) { const a = Math.min(opts.from, opts.ball), b = Math.max(opts.from, opts.ball); marks += `<span class="trail" style="left:${pct(a)};width:calc(${pct(b)} - ${pct(a)})"></span>`; }
+    marks += `<span class="ball" style="left:${pct(opts.ball)}"></span>`;
+    return `<div class="field" role="img" aria-label="Field position">
+      <div class="turf"></div>
+      <div class="ez l" style="--team:${t[0].color}"><span>${esc(t[0].abbr)}</span></div>
+      <div class="ez r" style="--team:${t[1].color}"><span>${esc(t[1].abbr)}</span></div>
+      ${nums}${marks}
+    </div>`;
+  }
+  function liveField() {
+    const x = fx(S.poss, S.spot), fd = fx(S.poss, Math.min(S.spot + S.toGo, 100));
+    return field({ ball: x, los: x, fd: S.spot + S.toGo >= 100 ? null : fd }) +
+      `<div class="legend"><span><i style="background:#3E8EEA"></i>Line of scrimmage</span>${S.spot + S.toGo >= 100 ? "" : '<span><i style="background:var(--firstdown)"></i>First-down line</span>'}<span>${esc(name(0))} drive left to right</span></div>`;
+  }
+  const bannerHtml = () => S.banner ? `<p class="banner">${esc(S.banner)}</p>` : "";
+
+  function vSetup() {
+    const d = S.draft;
+    const teamCfg = i => `
+      <section class="panel teamcfg" style="--team:${d.t[i].color}" aria-label="${i === 0 ? "Home" : "Away"} team">
+        <div style="display:grid;gap:6px"><label for="t${i}name">${i === 0 ? "Home team" : "Away team"}</label>
+        <input type="text" id="t${i}name" data-t="${i}" maxlength="20" value="${esc(d.t[i].name)}" autocomplete="off"></div>
+        <div style="display:grid;gap:6px"><label>Color</label><div class="swatches">
+          ${COLORS.map(c => `<button class="sw" style="--c:${c}" data-a="color" data-t="${i}" data-c="${c}" aria-pressed="${d.t[i].color === c}" aria-label="Color ${c}"></button>`).join("")}
+        </div></div>
+        <div style="display:grid;gap:6px"><label>Coordinator</label><div class="seg">
+          <button data-a="ctrl" data-t="${i}" data-v="0" aria-pressed="${!d.t[i].cpu}">Human</button>
+          <button data-a="ctrl" data-t="${i}" data-v="1" aria-pressed="${d.t[i].cpu}">Computer</button>
+        </div></div>
+      </section>`;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Pass-the-phone football</p>
+        <h1>Call Sheet <em>Football</em></h1>
+        <p class="muted">Two coordinators, one phone. Both sides call blind, then the play runs.</p>
+      </div>
+      ${teamCfg(0)}${teamCfg(1)}
+      <section class="panel">
+        <div style="display:grid;gap:6px"><span class="eyebrow">Game length</span><div class="seg">
+          ${QLENS.map(q => `<button data-a="qlen" data-v="${q.s}" aria-pressed="${d.qLen === q.s}">${q.l}<br><small class="muted">${q.d}</small></button>`).join("")}
+        </div></div>
+        <div style="display:grid;gap:6px"><span class="eyebrow">Audibles</span><div class="seg">
+          <button data-a="aud" data-v="1" aria-pressed="${d.aud !== false}">On<br><small class="muted">Read the look, change the play</small></button>
+          <button data-a="aud" data-v="0" aria-pressed="${d.aud === false}">Off<br><small class="muted">Faster, fewer handoffs</small></button>
+        </div></div>
+        <p class="muted" style="font-size:14px">The crowd pulls for the home team. No sound? Check that your iPhone's silent switch is off.</p>
+        <ol class="steps">
+          <li>The offense secretly locks in a play.</li>
+          <li>Pass the phone. The defense secretly locks in a call.</li>
+          ${d.aud !== false ? "<li>Pass it back. The offense sees the defense's look and can audible once.</li>" : ""}
+          <li>The play runs. Guess right and you win the snap.</li>
+        </ol>
+      </section>
+      <button class="btn" data-a="kickoff">Kick off</button>`;
+  }
+
+  function vHandoff() {
+    const aud = S.side === "aud", t = S.side === "def" ? 1 - S.poss : S.poss, tm = S.teams[t];
+    const role = S.side === "def" ? "defensive" : "offensive";
+    if (aud) return `${board()}
+      <p class="banner">${esc(name(1 - S.poss))} have locked in their defense.</p>
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">At the line · ${S.snap.sit}</p>
+        <h2>Pass the phone back to the <span>${esc(tm.name)}</span> offensive coordinator</h2>
+        <p class="muted">The defense is set. Read their look and decide whether to audible.</p>
+        <button class="btn team" data-a="reveal">I'm ${esc(tm.abbr)} offense. Go to the line</button>
+      </section>
+      ${liveField()}`;
+    return `${board()}
+      ${S.locked && S.side === "def" ? `<p class="banner">${esc(name(S.poss))} have locked in their play.</p>` : bannerHtml()}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">Next up · ${S.snap.sit}</p>
+        <h2>Pass the phone to the <span>${esc(tm.name)}</span> ${role} coordinator</h2>
+        <p class="muted">Keep the screen away from the other side. Neither call shows until both are locked in.</p>
+        <button class="btn team" data-a="reveal">I'm ${esc(tm.abbr)} ${S.side === "off" ? "offense" : "defense"}. Show my calls</button>
+      </section>
+      ${liveField()}`;
+  }
+
+  function fitTagFor(pk, id) {
+    const f = (PKG_FIT[pk] || {})[id] || 0, cm = ((OFF_PKGS[pk] || {}).comp || {})[id] || 1;
+    if (f <= -1.5 || cm <= .4) return " · very poor fit";
+    if (f <= -.5) return " · poor fit";
+    if (f >= 1) return " · great fit";
+    if (f >= .5) return " · good fit";
+    return "";
+  }
+  // At the line: the offense reads the defense's look and can change the play once
+  function vLOS() {
+    const o = S.poss, d = 1 - o, tm = S.teams[o], L = LOOKS[S.look.d], cur = OFFP[S.offCall];
+    const card = id => `<button class="play" data-a="audpick" data-v="${id}" aria-pressed="${S.audSel === id}">
+        <span class="tag">${OFFP[id].tag + fitTagFor(S.offPkg, id)}</span><span class="nm">${OFFP[id].name}</span><span class="ds">${OFFP[id].desc}</span></button>`;
+    const to = S.audSel && OFFP[S.audSel];
+    return `${board()}
+      <div style="--team:${tm.color};display:grid;gap:14px">
+        <div class="callhead">
+          <p class="eyebrow">${esc(tm.name)} · At the line</p>
+          <h2>Read the defense</h2>
+          <p class="muted">${S.twoPt ? `Two-point try from the ${spotText(o, S.spot)}` : `${downText()} at the ${spotText(o, S.spot)}`}. You can audible once. Changing the play adds a small risk of a false start or delay of game${S.wasRunning ? " and burns a few seconds" : ""}.</p>
+        </div>
+        ${liveField()}
+        <p class="banner">${esc(name(d))} are in <b>${DEF_PKGS[S.defPkg].name}</b> (${DEF_PKGS[S.defPkg].who}).</p>
+        <div class="lookcard"><span class="eyebrow">The look</span><span class="lk">${L.name}</span><span class="lh muted">${L.hint} Defenses disguise it sometimes, so it is not a sure thing.</span></div>
+        <div class="mycall"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg].short}</span><span class="nm">${cur.name}</span></div>
+        <p class="sechead">Check to</p>
+        <div class="plays">${audIds().map(card).join("")}</div>
+        <div class="lockbar two">
+          ${to ? `<button class="btn team" data-a="audible">Audible to ${esc(to.name)}</button>` : ""}
+          <button class="btn ${to ? "ghost" : "team"}" data-a="snap">Run ${esc(cur.name)}</button>
+        </div>
+      </div>`;
+  }
+
+  function vCall() {
+    const isOff = S.side === "off", t = isOff ? S.poss : 1 - S.poss, tm = S.teams[t];
+    const pk = S.pkgSel || (isOff ? "p11" : "nickel");
+    const ids = isOff ? OFF_IDS.concat(pk === "jumbo" ? ["te"] : []) : DEF_IDS, book = isOff ? OFFP : DEFP;
+    const fitTag = id => isOff ? fitTagFor(pk, id) : "";
+    const pkgIds = isOff ? OFF_PKG_IDS : DEF_PKG_IDS, pkgBook = isOff ? OFF_PKGS : DEF_PKGS;
+    const pkgPicker = `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>
+      <div class="pkgs ${isOff ? "" : "two"}">${pkgIds.map(id => `<button class="pkg" data-a="pkg" data-v="${id}" aria-pressed="${pk === id}">
+        <span class="pn">${pkgBook[id].name}</span><span class="pw">${pkgBook[id].who}</span></button>`).join("")}</div>
+      <p class="muted pkdesc">${esc(pkgBook[pk].desc)}</p>`;
+    const theirPkg = !isOff && S.offPkg ? `<p class="banner">${esc(name(S.poss))} are in <b>${OFF_PKGS[S.offPkg].name}</b> (${OFF_PKGS[S.offPkg].who}). Their play is hidden.</p>` : "";
+    const card = (id, nm, tag, ds, extra) => `<button class="play ${extra || ""}" data-a="pick" data-v="${id}" aria-pressed="${S.sel === id}">
+        <span class="tag">${tag}</span><span class="nm">${nm}</span><span class="ds">${ds}</span></button>`;
+    let st = "";
+    if (isOff && kneelAvailable()) {
+      st += `<p class="sechead">Run out the clock</p><div class="plays">` +
+        card("kneel", "Kneel down", "Clock", `Take a knee. Lose a yard and let about 40 seconds run off. ${esc(name(1 - S.poss))} have no timeouts left.`, "st") + `</div>`;
+    }
+    if (isOff && (puntAvailable() || fgAvailable())) {
+      st += `<p class="sechead">Special teams</p><div class="plays">`;
+      if (puntAvailable()) st += card("punt", "Punt", "Kick", "Flip the field. Averages about 43 yards.", "st");
+      if (fgAvailable()) { const k = kickDist(); st += card("fg", `${k}-yd field goal`, "Kick", `About ${Math.round(fgProb(k) * 100)}% from here.`, "st"); }
+      st += `</div><p class="sechead">Trick plays</p><div class="plays">`;
+      if (puntAvailable()) st += card("fp", "Fake Punt", "Trick", "Line up to punt, then run or throw for the first down. Deadly if they sell out for the kick.", "st");
+      if (fgAvailable()) st += card("ffg", "Fake Field Goal", "Trick", "The holder keeps it. Works if they rush the kick, gets stuffed if they don't.", "st");
+      st += `</div>`;
+    }
+    if (!isOff && !S.twoPt && (puntAvailable() || fgAvailable())) {
+      st += `<p class="sechead">Special teams</p><div class="plays">`;
+      st += card("blk", DEFP.blk.name, DEFP.blk.tag, DEFP.blk.desc, "st");
+      if (puntAvailable()) st += card("ret", DEFP.ret.name, DEFP.ret.tag, DEFP.ret.desc, "st");
+      st += `</div>`;
+    }
+    const selName = S.sel ? (S.sel === "punt" ? "Punt" : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
+    return `${board()}
+      ${S.locked && !isOff && !bothHuman() ? "" : bannerHtml()}
+      <div style="--team:${tm.color};display:grid;gap:14px">
+        <div class="callhead">
+          <p class="eyebrow">${esc(tm.name)} · ${isOff ? "Offense" : "Defense"}</p>
+          <h2>${S.twoPt ? (isOff ? "Two-point play" : "Stop the two") : isOff ? "Call your play" : "Call your defense"}</h2>
+          <p class="muted">${S.twoPt ? `Two-point try from the ${spotText(S.poss, S.spot)}` : `${downText()} at the ${spotText(S.poss, S.spot)}`}${isOff ? "" : `. ${esc(name(S.poss))} have the ball`}.</p>
+        </div>
+        ${liveField()}
+        ${theirPkg}
+        ${pkgPicker}
+        <p class="sechead">${isOff ? "Plays" : "Calls"}</p>
+        <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>
+        ${st}
+        <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}` : "Pick a call"}</button></div>
+      </div>`;
+  }
+
+  function clockBox() {
+    if (S.needPAT || S.tryChoice || S.retryTwo || S.kickChoice || S.periodOver || S.gameOver || !S.tos) return "";
+    const o = S.poss, t = S.teams;
+    let stat;
+    if (S.clockRunning) stat = `Clock running. About ${S.spikeNext ? "10" : S.oobRestart ? "20" : "35"} seconds come off before the next snap${S.oobRestart ? " (out of bounds, clock restarts when the ball is set)" : ""}.`;
+    else stat = S.toNote ? S.toNote + " Clock stopped." : "Clock stopped until the next snap.";
+    let btns = "";
+    if (S.clockRunning) {
+      [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
+      if (!t[o].cpu && S.down <= 3) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
+    }
+    return `<div class="clockbox"><p class="cstat">${esc(stat)}</p>${btns ? `<div class="clockbtns">${btns}</div>` : ""}</div>`;
+  }
+  function vResult() {
+    const r = S.last, o = r.team, d = 1 - o;
+    let offName, defName = r.defId ? DEFP[r.defId].name : null;
+    if (r.offId === "punt") offName = "Punt"; else if (r.offId === "fg") offName = "Field goal";
+    else if (r.offId === "xp") offName = "Extra point"; else if (r.offId === "two") offName = "Go for two";
+    else if (r.offId === "spike") offName = "Spike";
+    else if (r.offId === "kneel") offName = "Kneel down";
+    else if (r.offId === "fp") offName = "Fake punt"; else if (r.offId === "ffg") offName = "Fake field goal";
+    else if (r.offId === "onside") offName = "Onside kick"; else if (r.offId === "kickoff") offName = "Kickoff";
+    else offName = OFFP[r.offId].name;
+    let label = "Next play";
+    if (S.needPAT || S.tryChoice) label = "Point after";
+    else if (S.kickChoice) label = "Kickoff";
+    else if (S.retryTwo) label = "Replay the try";
+    else if (S.gameOver) label = "Final score";
+    else if (S.periodOver) label = S.quarter === 2 ? "Go to halftime" : S.quarter >= 4 ? "End of regulation" : "End of quarter";
+    return `${board()}
+      <section class="panel">
+        <div class="calls">
+          <div class="callchip" style="--team:${S.teams[o].color}"><div class="who">${esc(S.teams[o].abbr)} ${r.offId === "onside" || r.offId === "kickoff" ? "kickoff" : "offense"}</div><div class="nm">${offName}</div>${r.opk && OFF_PKGS[r.opk] && OFFP[r.offId] ? `<div class="pk">${OFF_PKGS[r.opk].name}</div>` : ""}${r.aud ? `<div class="pk">Audible from ${OFFP[r.aud.from].name}</div>` : ""}</div>
+          ${defName ? `<div class="callchip" style="--team:${S.teams[d].color}"><div class="who">${esc(S.teams[d].abbr)} defense</div><div class="nm">${defName}</div>${r.dpk && DEF_PKGS[r.dpk] && OFFP[r.offId] ? `<div class="pk">${DEF_PKGS[r.dpk].name}</div>` : ""}</div>` : ""}
+        </div>
+        <div class="headline ${r.tone}">${r.head}</div>
+        ${r.read ? `<span class="read ${r.read.c}"><i></i>${esc(r.read.t)}</span>` : ""}
+        <p class="narr">${esc(r.text)}</p>
+        ${r.audNote ? `<p class="audnote">${esc(r.audNote)}</p>` : ""}
+        ${r.sub ? `<p class="next">${esc(r.sub)}</p>` : ""}
+        ${r.tmw ? `<p class="banner">Two-minute warning. The clock is stopped.</p>` : ""}
+        ${clockBox()}
+        ${field({ ball: r.toX, los: r.fromX, from: r.fromX })}
+        ${S.periodOver && !S.needPAT && !S.tryChoice && !S.retryTwo ? `<p class="banner">That's the end of ${S.quarter === 5 ? "overtime" : "the " + ord(S.quarter) + " quarter"}.</p>` : ""}
+        <button class="btn" data-a="cont">${label}</button>
+      </section>`;
+  }
+
+  function vPenalty() {
+    const P = S.pen, pen = PEN[P.code], ch = S.teams[P.chooser];
+    if (P.two) {
+      const sub2 = "font-family:var(--body);font-weight:500;font-size:15px;text-transform:none;letter-spacing:0;display:block;margin-top:4px;line-height:1.3";
+      const acc = pen.on === "off"
+        ? `The try moves back to the ${ydLine(P.spot - Math.min(pen.yds, Math.floor(P.spot / 2)))}. Then ${esc(name(P.team))} choose: go for two again or kick.`
+        : `Half the distance: the two-point try is replayed from the ${ydLine(Math.min(99, P.spot + Math.max(1, Math.floor((100 - P.spot) / 2))))}.`;
+      const dec = P.good ? "The two-point try is good. 2 points count." : "The two-point try fails. No points.";
+      return `${board()}
+      <section class="panel handoff" style="--team:${ch.color}">
+        <p class="eyebrow">Flag on the two-point try</p>
+        <h2>${esc(pen.name)}, <span>${pen.on === "off" ? "offense" : "defense"}</span></h2>
+        <p class="narr">${esc(P.text)}</p>
+        <p class="muted">${esc(ch.name)} choose whether to accept the penalty.</p>
+        <div style="display:grid;gap:10px">
+          <button class="btn team" data-a="pen" data-v="1">Accept penalty<span style="${sub2}">${acc}</span></button>
+          <button class="btn ghost" data-a="pen" data-v="0">Decline, keep the result<span style="${sub2}">${dec}</span></button>
+        </div>
+      </section>`;
+    }
+    const outcome = (x, isAccept) => {
+      const sc = x.scores, pre = P.pre.scores;
+      if (x.gameOver) return `${esc(name(sc[0] > sc[1] ? 0 : 1))} win the game.`;
+      if (sc[0] !== pre[0] || sc[1] !== pre[1]) {
+        const who = sc[0] - pre[0] > sc[1] - pre[1] ? 0 : 1;
+        return `${esc(name(who))} score stands. ${esc(abbr(0))} ${sc[0]}, ${esc(abbr(1))} ${sc[1]}.`;
+      }
+      const lead = isAccept ? esc(P.accDesc) + " " : "";
+      if (x.poss !== P.pre.poss) return `${lead}${esc(name(x.poss))} ball, ${downTextOf(x)} at the ${spotText(x.poss, x.spot)}.`;
+      return `${lead}${downTextOf(x)} at the ${spotText(x.poss, x.spot)}.`;
+    };
+    const sub = "font-family:var(--body);font-weight:500;font-size:15px;text-transform:none;letter-spacing:0;display:block;margin-top:4px;line-height:1.3";
+    return `${board()}
+      <section class="panel handoff" style="--team:${ch.color}">
+        <p class="eyebrow">Flag on the play</p>
+        <h2>${esc(pen.name)}, <span>${pen.on === "off" ? "offense" : "defense"}</span></h2>
+        <p class="narr">${esc(P.r.text)}</p>
+        <p class="muted">${esc(ch.name)} choose whether to accept the penalty.</p>
+        <div style="display:grid;gap:10px">
+          <button class="btn team" data-a="pen" data-v="1">Accept penalty<span style="${sub}">${outcome(P.acc, true)}</span></button>
+          <button class="btn ghost" data-a="pen" data-v="0">Decline, keep the play<span style="${sub}">${outcome(P.post, false)}</span></button>
+        </div>
+      </section>`;
+  }
+  function vTry() {
+    const c = S.tryChoice, tm = S.teams[c.team], d = xpDist(c.spot);
+    const small = "font-family:var(--body);font-weight:500;font-size:14px;text-transform:none";
+    return `${board()}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(tm.name)} · Point after</p>
+        <h2>Go for two again or <span>kick it</span>?</h2>
+        <p class="muted">After the penalty, the try is at the ${ydLine(c.spot)}. An extra point would be a ${d}-yard kick.</p>
+        <div class="choices">
+          <button class="btn team" data-a="try" data-v="kick">Kick<br><small style="${small}">1 point · ${d} yards · about ${Math.round(fgProb(d) * 100)}%</small></button>
+          <button class="btn ghost" data-a="try" data-v="two">Go for two<br><small style="${small}">2 points · play from the ${100 - c.spot}</small></button>
+        </div>
+      </section>`;
+  }
+  function vKick() {
+    const k = S.kickChoice.team, tm = S.teams[k], down = S.teams[1 - k].score - tm.score;
+    const small = "font-family:var(--body);font-weight:500;font-size:14px;text-transform:none";
+    return `${board()}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(tm.name)} · Kickoff</p>
+        <h2>Kick deep or go <span>onside</span>?</h2>
+        <p class="muted">Down ${down} with ${fmtClock(S.clock)} left${S.tos ? ` and ${S.tos[k]} timeout${S.tos[k] === 1 ? "" : "s"}` : ""}. An onside kick has to be announced, so ${esc(name(1 - k))} will have their hands team ready.</p>
+        <div class="choices">
+          <button class="btn ghost" data-a="kick" data-v="deep">Kick deep<br><small style="${small}">They usually start around their 30</small></button>
+          <button class="btn team" data-a="kick" data-v="onside">Onside kick<br><small style="${small}">About 1 in 15 recovered. Miss and they start near midfield</small></button>
+        </div>
+      </section>`;
+  }
+  function vPAT() {
+    const tm = S.teams[S.patTeam];
+    return `${board()}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(tm.name)} · Point after</p>
+        <h2>Kick it or go for <span>two</span>?</h2>
+        <div class="choices">
+          <button class="btn team" data-a="pat" data-v="kick">Kick<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">1 point · about 94%</small></button>
+          <button class="btn ghost" data-a="pat" data-v="two">Go for two<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">2 points · run a play from the 2</small></button>
+        </div>
+      </section>`;
+  }
+
+  function vFinal() {
+    const [a, b] = S.teams, tie = a.score === b.score, w = a.score > b.score ? 0 : 1;
+    return `${board()}
+      <section class="panel final handoff" style="--team:${tie ? "var(--ink)" : S.teams[w].color}">
+        <p class="eyebrow">Final${S.quarter === 5 ? " · Overtime" : ""}</p>
+        <h2>${tie ? "It ends in a tie" : `<span>${esc(S.teams[w].name)}</span> win ${S.teams[w].score}-${S.teams[1 - w].score}`}</h2>
+        <div class="choices">
+          <button class="btn" data-a="rematch">Rematch</button>
+          <button class="btn ghost" data-a="newsetup">New teams</button>
+        </div>
+      </section>`;
+  }
+
+  function vExtras() {
+    if (S.phase === "setup") return "";
+    const t = S.teams;
+    const rows = [["Total yards", "yds"], ["Rushing", "rush"], ["Passing", "pass"], ["First downs", "fd"], ["Turnovers", "to"], ["Penalties", "pen"], ["Plays", "plays"]];
+    const cell = (st, k) => k === "pen" ? `${st.pen || 0}-${st.penYds || 0}` : st[k];
+    const box = `<details ${S.phase === "final" ? "open" : ""}><summary>Box score</summary><div class="tablewrap"><table>
+      <thead><tr><th></th><th>${esc(t[0].abbr)}</th><th>${esc(t[1].abbr)}</th></tr></thead>
+      <tbody>${rows.map(([l, k]) => `<tr><td>${l}</td><td>${cell(t[0].st, k)}</td><td>${cell(t[1].st, k)}</td></tr>`).join("")}</tbody></table></div></details>`;
+    const log = S.log.length ? `<details><summary>Play-by-play</summary><ol class="log">${S.log.slice(0, 80).map(e => `
+      <li style="--team:${t[e.team].color}">
+        <span class="meta"><span>${qLabel(e.q)} ${fmtClock(e.clock)}</span><span>${esc(e.sit)}</span><span>${esc(t[0].abbr)} ${e.score.split("-")[0]} · ${esc(t[1].abbr)} ${e.score.split("-")[1]}</span></span>
+        <span class="cl"><span class="tm"></span>${esc(e.off)}${e.def ? ` vs ${esc(e.def)}` : ""}</span>
+        <span>${esc(e.text)}</span>
+      </li>`).join("")}</ol></details>` : "";
+    const foot = S.phase !== "final" ? `<div class="foot"><button class="linkbtn ${S.confirmEnd ? "warn" : ""}" data-a="end">${S.confirmEnd ? "Tap again to end this game" : "End game"}</button></div>` : "";
+    return box + log + foot;
+  }
+
+  function render() {
+    if (typeof document === "undefined") return;
+    const app = document.getElementById("app");
+    const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, los: vLOS, kickchoice: vKick };
+    const on = !Sound.muted();
+    const icon = on
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+    const top = `<div class="topbar"><button class="soundbtn" data-a="mute" aria-pressed="${on}">${icon}Sound ${on ? "on" : "off"}</button></div>`;
+    app.innerHTML = top + (views[S.phase] || vSetup)() + vExtras();
+  }
+
+  /* ---------- Sound ---------- */
+  // All sounds are synthesized in the browser. No audio files.
+  const Sound = (() => {
+    let ctx = null, master = null, amb = null, hornBus = null, noiseBuf = null, muted = false;
+    try { muted = localStorage.getItem("callsheet-sound") === "off"; } catch (e) {}
+    function ac() {
+      if (typeof window === "undefined") return null;
+      if (!ctx) {
+        const C = window.AudioContext || window.webkitAudioContext;
+        if (!C) return null;
+        try { ctx = new C(); } catch (e) { return null; }
+        // Signal chain: crowd/whistles (amb) and horn each feed a compressor, so loud moments stay clean
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = .005; comp.release.value = .25;
+        master = ctx.createGain(); master.gain.value = .95;
+        comp.connect(master); master.connect(ctx.destination);
+        amb = ctx.createGain(); amb.gain.value = 1; amb.connect(comp);
+        hornBus = ctx.createGain(); hornBus.gain.value = 1; hornBus.connect(comp);
+      }
+      if (ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }
+    function noise() {
+      if (noiseBuf) return noiseBuf;
+      const len = ctx.sampleRate * 4, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = .99765 * b0 + w * .099046; b1 = .963 * b1 + w * .2965164; b2 = .57 * b2 + w * 1.0526913;
+        d[i] = (b0 + b1 + b2 + w * .1848) * .16;
+      }
+      return (noiseBuf = b);
+    }
+    function env(g, t, a, peak, hold, rel) {
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + a);
+      g.gain.setValueAtTime(peak, t + a + hold);
+      g.gain.exponentialRampToValueAtTime(.0001, t + a + hold + rel);
+      return t + a + hold + rel + .05;
+    }
+    function noiseSrc(t, end) { const s = ctx.createBufferSource(); s.buffer = noise(); s.loop = true; s.start(t, Math.random() * 3); s.stop(end); return s; }
+    function filt(type, f, q) { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q == null ? .7 : q; return n; }
+    function pan(v) {
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = v; return p; }
+      return ctx.createGain();
+    }
+    const R = (a, b) => a + Math.random() * (b - a);
+
+    // Crowd sizes. Each layer adds realism: a wide noise "wash", low rumble, dozens of individual voices, claps and fan whistles.
+    const CROWD = {
+      roar:   { a: .35, peak: .9,  hold: 3.4, rel: 2.4, rumble: .6, voices: 34, vox: .03,  claps: 140, fanWhistles: 4, rise: 1.18, vowel: [750, 1250] },
+      cheer:  { a: .3,  peak: .65, hold: 1.5, rel: 1.6, rumble: .35, voices: 22, vox: .026, claps: 70, fanWhistles: 2, rise: 1.12, vowel: [750, 1250] },
+      light:  { a: .25, peak: .32, hold: .7,  rel: 1.0, rumble: .1, voices: 9,  vox: .02,  claps: 25, fanWhistles: 0, rise: 1.06, vowel: [700, 1150] },
+      murmur: { a: .25, peak: .16, hold: .4,  rel: .8,  rumble: .08, voices: 0, vox: 0,    claps: 0,  fanWhistles: 0, rise: 1,   vowel: [500, 900] },
+      groan:  { a: .22, peak: .42, hold: .9,  rel: 1.4, rumble: .25, voices: 22, vox: .026, claps: 0,  fanWhistles: 0, rise: .78, vowel: [430, 780] }
+    };
+
+    const fx = {
+      whistle(t, len) {
+        len = len || .4;
+        const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), bp = filt("bandpass", 3000, 3);
+        o.type = "triangle"; o.frequency.value = 2950;
+        lfo.frequency.value = 26; lg.gain.value = 140; lfo.connect(lg); lg.connect(o.frequency);
+        o.connect(bp); bp.connect(g); g.connect(amb);
+        const end = env(g, t, .015, .2, len, .06);
+        o.start(t); lfo.start(t); o.stop(end); lfo.stop(end);
+      },
+      crowd(t, kind) {
+        const s = CROWD[kind]; if (!s) return;
+        const total = s.a + s.hold + s.rel;
+        // 1. Wide wash, split left and right
+        [-.7, .7].forEach(p => {
+          const g = ctx.createGain(), bp = filt("bandpass", R(800, 1100), .5), pn = pan(p);
+          const end = env(g, t + R(0, .08), s.a, s.peak * .5, s.hold, s.rel);
+          noiseSrc(t, end).connect(bp); bp.connect(g); g.connect(pn); pn.connect(amb);
+          const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = R(2, 5); lg.gain.value = s.peak * .12;
+          lfo.connect(lg); lg.connect(g.gain); lfo.start(t); lfo.stop(end);
+        });
+        // 2. Low rumble (stadium body)
+        if (s.rumble) {
+          const g = ctx.createGain(), lp = filt("lowpass", 260, .7);
+          const end = env(g, t, s.a * 1.3, s.rumble, s.hold, s.rel);
+          noiseSrc(t, end).connect(lp); lp.connect(g); g.connect(amb);
+        }
+        // 3. Individual voices shaped into a vowel ("yeahhh" rising, "ohhh" falling)
+        if (s.voices) {
+          const f1 = filt("bandpass", s.vowel[0], 3.5), f2 = filt("bandpass", s.vowel[1], 4), vg = ctx.createGain();
+          f1.connect(vg); f2.connect(vg); vg.connect(amb);
+          const vend = env(vg, t, s.a, 1, s.hold, s.rel);
+          for (let i = 0; i < s.voices; i++) {
+            const o = ctx.createOscillator(), og = ctx.createGain(), pn = pan(R(-.9, .9));
+            const f0 = Math.random() < .55 ? R(110, 190) : R(200, 360), st = t + R(0, .35);
+            o.type = "sawtooth";
+            o.frequency.setValueAtTime(f0, st);
+            o.frequency.exponentialRampToValueAtTime(f0 * s.rise * R(.97, 1.03), st + s.a + s.hold * .6);
+            const vib = ctx.createOscillator(), vgn = ctx.createGain(); vib.frequency.value = R(4.5, 7); vgn.gain.value = f0 * .015;
+            vib.connect(vgn); vgn.connect(o.frequency);
+            og.gain.value = s.vox * R(.6, 1.2);
+            o.connect(og); og.connect(pn); pn.connect(f1); pn.connect(f2);
+            const stop = Math.min(vend, st + total * R(.75, 1.05));
+            o.start(st); vib.start(st); o.stop(stop); vib.stop(stop);
+          }
+        }
+        // 4. Claps scattered across the reaction
+        for (let i = 0; i < s.claps; i++) {
+          const ct = t + s.a * .5 + Math.random() * (s.hold + s.rel * .5);
+          const g = ctx.createGain(), bp = filt("bandpass", R(1400, 2600), 1.4), pn = pan(R(-.9, .9));
+          noiseSrc(ct, ct + .05).connect(bp); bp.connect(g); g.connect(pn); pn.connect(amb);
+          env(g, ct, .001, R(.08, .2), .004, .03);
+        }
+        // 5. Fans whistling
+        for (let i = 0; i < s.fanWhistles; i++) {
+          const st = t + R(.2, 1.2), o = ctx.createOscillator(), g = ctx.createGain(), pn = pan(R(-.8, .8)), f = R(1800, 2600);
+          o.type = "sine"; o.frequency.setValueAtTime(f, st); o.frequency.linearRampToValueAtTime(f * R(1.15, 1.3), st + .25); o.frequency.linearRampToValueAtTime(f * R(.9, 1.0), st + .6);
+          o.connect(g); g.connect(pn); pn.connect(amb);
+          const end = env(g, st, .03, .035, .45, .2); o.start(st); o.stop(end);
+        }
+      },
+      horn(t, len) {
+        len = len || 2.2;
+        // Duck everything else so the horn is the main sound, then bring the crowd back up underneath
+        amb.gain.cancelScheduledValues(t);
+        amb.gain.setTargetAtTime(.18, t, .04);
+        amb.gain.setTargetAtTime(1, t + len, .35);
+        const shaper = ctx.createWaveShaper(), curve = new Float32Array(2048), k = 14;
+        for (let i = 0; i < 2048; i++) { const x = i / 1024 - 1; curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x)); }
+        shaper.curve = curve; shaper.oversample = "4x";
+        const pre = ctx.createGain(); pre.gain.value = .5;
+        const honk = filt("peaking", 900, 1.2); honk.gain.value = 7;
+        const lp = filt("lowpass", 3200, .8), g = ctx.createGain();
+        pre.connect(shaper); shaper.connect(honk); honk.connect(lp); lp.connect(g); g.connect(hornBus);
+        const end = env(g, t, .03, .55, len, .4);
+        const flutter = ctx.createOscillator(), fg = ctx.createGain(); flutter.frequency.value = 7; fg.gain.value = .04;
+        flutter.connect(fg); fg.connect(g.gain); flutter.start(t); flutter.stop(end);
+        [[110, "sawtooth", .5], [138.6, "sawtooth", .42], [164.8, "sawtooth", .38], [220, "sawtooth", .22], [55, "square", .3]].forEach(([f, type, lvl]) =>
+          [-7, 7].forEach(dt => {
+            const o = ctx.createOscillator(), og = ctx.createGain();
+            o.type = type; o.detune.value = dt;
+            o.frequency.setValueAtTime(f * .93, t); o.frequency.exponentialRampToValueAtTime(f, t + .14);
+            og.gain.value = lvl * .5; o.connect(og); og.connect(pre); o.start(t); o.stop(end);
+          }));
+      },
+      // Home crowd on an opponent's 3rd down: a rising roar with stomps and a "DE-FENSE" chant
+      thirdDown(t) {
+        const len = 3.4;
+        // rising wash under everything
+        [-.6, .6].forEach(p => {
+          const g = ctx.createGain(), bp = filt("bandpass", R(850, 1050), .5), pn = pan(p);
+          g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.12, t + .4);
+          g.gain.linearRampToValueAtTime(.38, t + len - .6); g.gain.exponentialRampToValueAtTime(.0001, t + len + .6);
+          noiseSrc(t, t + len + .7).connect(bp); bp.connect(g); g.connect(pn); pn.connect(amb);
+        });
+        const beat = .52;
+        for (let rep = 0; rep < 3; rep++) {
+          const t0 = t + .35 + rep * beat * 2.2;
+          [[0, "de"], [beat, "fense"]].forEach(([dt, syl]) => {
+            const st = t0 + dt;
+            // stomp
+            const o = ctx.createOscillator(), og = ctx.createGain();
+            o.frequency.setValueAtTime(95, st); o.frequency.exponentialRampToValueAtTime(40, st + .18);
+            o.connect(og); og.connect(amb); const e1 = env(og, st, .004, .55, .02, .2); o.start(st); o.stop(e1);
+            const sg = ctx.createGain(), lp = filt("lowpass", 300, .8);
+            noiseSrc(st, st + .25).connect(lp); lp.connect(sg); sg.connect(amb); env(sg, st, .003, .4, .01, .12);
+            // many voices on the syllable
+            const f1 = filt("bandpass", syl === "de" ? 450 : 560, 3.5), f2 = filt("bandpass", syl === "de" ? 2000 : 1750, 4), vg = ctx.createGain();
+            f1.connect(vg); f2.connect(vg); vg.connect(amb);
+            const dur = syl === "de" ? .2 : .32;
+            const ve = env(vg, st + .02, .03, .9 + rep * .15, dur, .15);
+            for (let i = 0; i < 16; i++) {
+              const v = ctx.createOscillator(), vgn = ctx.createGain(), pn = pan(R(-.9, .9));
+              const f0 = (Math.random() < .6 ? R(120, 180) : R(210, 300)) * (syl === "de" ? 1 : 1.12);
+              v.type = "sawtooth"; v.frequency.setValueAtTime(f0, st);
+              if (syl === "fense") v.frequency.exponentialRampToValueAtTime(f0 * .9, st + dur + .1);
+              vgn.gain.value = .02 * R(.7, 1.2); v.connect(vgn); vgn.connect(pn); pn.connect(f1); pn.connect(f2);
+              const s0 = st + R(0, .05); v.start(s0); v.stop(ve);
+            }
+            // a sharp "-se" hiss at the end of FENSE
+            if (syl === "fense") {
+              const hg = ctx.createGain(), hp = filt("highpass", 4000, .7);
+              noiseSrc(st + dur, st + dur + .25).connect(hp); hp.connect(hg); hg.connect(amb); env(hg, st + dur, .01, .12, .06, .1);
+            }
+          });
+        }
+        return len;
+      },
+      thud(t) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.setValueAtTime(115, t); o.frequency.exponentialRampToValueAtTime(42, t + .2);
+        o.connect(g); g.connect(amb); const end = env(g, t, .004, .7, .02, .25);
+        o.start(t); o.stop(end);
+        const g2 = ctx.createGain(), lp = filt("lowpass", 380, .8);
+        noiseSrc(t, t + .3).connect(lp); lp.connect(g2); g2.connect(amb); env(g2, t, .003, .5, .01, .12);
+      },
+      kick(t) {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(65, t + .07);
+        o.connect(g); g.connect(amb); const end = env(g, t, .002, .6, .01, .1);
+        o.start(t); o.stop(end);
+        const g2 = ctx.createGain(), hp = filt("highpass", 1600, .7);
+        noiseSrc(t, t + .1).connect(hp); hp.connect(g2); g2.connect(amb); env(g2, t, .001, .25, .005, .04);
+      }
+    };
+    return {
+      muted: () => muted,
+      toggle() { muted = !muted; try { localStorage.setItem("callsheet-sound", muted ? "off" : "on"); } catch (e) {} return !muted; },
+      play(cues) {
+        if (muted || !cues.length) return;
+        const c = ac(); if (!c) return;
+        const t0 = c.currentTime + .03;
+        cues.forEach(([name, at, arg]) => { try { fx[name](t0 + at, arg); } catch (e) {} });
+      }
+    };
+  })();
+
+  const HOME = 0;
+  // Crowd and horn rules: regular games root for the home team; a neutral site (Super Bowl) reacts to the play itself.
+  function resultCues(r, preScores) {
+    const cues = [], neutral = !!S.neutral;
+    const homeScored = S.teams[HOME].score > preScores[HOME], awayScored = S.teams[1 - HOME].score > preScores[1 - HOME];
+    const isPAT = r.offId === "xp" || r.offId === "two" || !!r.pat;
+    // A kickoff returned for a touchdown after the extra point counts as a real score
+    const retTD = isPAT && ((r.team !== HOME && homeScored) || (r.team === HOME && awayScored));
+    const patOnly = isPAT && !retTD;
+    let t = 0;
+    if (r.offId === "punt" || r.offId === "fg" || r.offId === "xp") { cues.push(["kick", 0]); t = r.offId === "punt" ? .25 : .7; }
+    const stuffed = r.offId !== "kneel" && (r.head === "Sack" || r.tod || r.head === "Fumble" || (r.y != null && r.y < 0));
+    if (stuffed) cues.push(["thud", 0]);
+    if (!isPAT) cues.push(["whistle", t + .1, .3]);
+    // How good was the play for the team that had the ball?
+    let q = r.s;
+    if (q == null) {
+      if (r.offId === "fg") q = /good/i.test(r.head) && !/No good/.test(r.head) ? 2 : -2;
+      else if (r.offId === "punt") q = /Blocked|Return TD/.test(r.head) ? -2 : 0;
+      else if (isPAT) q = r.tone === "good" ? 1 : -1;
+      else q = 0;
+    }
+    let crowd = null;
+    if (neutral) {
+      if (homeScored || awayScored) crowd = "roar";
+      else if (Math.abs(q) >= 2) crowd = q > 0 ? "cheer" : "groan";
+      else if (q !== 0) crowd = "murmur";
+    } else {
+      if (homeScored && (!patOnly || r.team !== HOME)) crowd = homeScored && retTD && r.team === HOME ? "groan" : "roar";
+      else if (awayScored && !patOnly) crowd = "groan";
+      else {
+        const hq = r.team === HOME ? q : -q;
+        crowd = hq >= 2 ? "cheer" : hq === 1 ? "light" : hq === -1 ? "murmur" : hq <= -2 ? "groan" : null;
+      }
+    }
+    if (crowd) cues.push(["crowd", t + .2, crowd]);
+    const hornForScore = neutral ? (!patOnly && (homeScored || awayScored)) : (homeScored && (!isPAT || r.team !== HOME));
+    if (hornForScore) cues.push(["horn", t + .45, 2.2]);
+    // Made extra point: a shorter horn (half the touchdown horn) for the home team, or for anyone at the Super Bowl
+    if (r.offId === "xp" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .3, 1.1]);
+    // Made two-point conversion: the full touchdown-length horn
+    if (r.pat === "two" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .45, 2.2]);
+    return cues;
+  }
+  function cuesFor(a, pre) {
+    if (!S.teams) return [];
+    if (a === "mute") return [["whistle", 0, .25]];
+    if (a === "to") return [["whistle", 0, .6]];
+    if (a === "spike") return [];
+    if (S.phase === "penalty" && pre.phase !== "penalty") return [["whistle", 0, .5]];
+    const cues = [];
+    if (S.tmwJust) { S.tmwJust = false; if (S.phase !== "result") cues.push(["whistle", 0, .9]); }
+    let t = 0;
+    if (a === "kickoff" || a === "rematch") { cues.push(["whistle", 0, .5]); t = .7; }
+    // End of a quarter (and halftime, regulation): whistle only, never a horn
+    const periodEnded = a !== "rematch" && pre.teams && (pre.quarter !== S.quarter || (S.phase === "final" && pre.phase !== "final"));
+    if (periodEnded && S.phase !== "final") { cues.push(["whistle", t, .9]); t += 1.1; }
+    // Visiting offense facing 3rd down: the home crowd gets loud
+    if (S.snap && S.snap !== pre.snap && S.snap.down === 3 && S.snap.poss !== HOME && !S.twoPt && !S.neutral && S.phase !== "final") {
+      cues.push(["thirdDown", t]);
+      if (S.phase === "result") t += 3.6;
+    }
+    if (S.phase === "result" && S.last && S.last.id !== pre.lastId)
+      resultCues(S.last, pre.scores).forEach(([n, at, arg]) => cues.push([n, at + t, arg]));
+    if (S.phase === "final" && pre.phase !== "final") {
+      cues.push(["whistle", t, 1.3]);
+      const homeWin = S.teams[HOME].score > S.teams[1 - HOME].score;
+      if (S.neutral) cues.push(["crowd", t + 1.2, "roar"]);
+      else if (homeWin) cues.push(["crowd", t + 1.2, "roar"]);
+      else if (S.teams[HOME].score < S.teams[1 - HOME].score) cues.push(["crowd", t + 1.2, "groan"]);
+      if (homeWin || S.neutral) cues.push(["horn", t + 1.4, 3.2]);
+    }
+    return cues;
+  }
+
+  /* ---------- Events ---------- */
+  let endTimer = null;
+  function act(a, ds) {
+    const pre = S.teams ? { teams: true, snap: S.snap, quarter: S.quarter, phase: S.phase, scores: [S.teams[0].score, S.teams[1].score], lastId: S.last && S.last.id } : { phase: S.phase };
+    if (a === "pen" && S.pen && S.pen.pre) pre.scores = S.pen.pre.scores.slice();
+    if (a === "mute") { const on = Sound.toggle(); render(); if (on) Sound.play([["whistle", 0, .25]]); return; }
+    switch (a) {
+      case "color": S.draft.t[+ds.t].color = ds.c; break;
+      case "ctrl": S.draft.t[+ds.t].cpu = ds.v === "1"; break;
+      case "qlen": S.draft.qLen = +ds.v; break;
+      case "kickoff": { const draft = S.draft; initGame(draft); S.lastDraft = draft; window.scrollTo(0, 0); break; }
+      case "reveal": S.phase = S.side === "aud" ? "los" : "call"; window.scrollTo(0, 0); break;
+      case "aud": S.draft.aud = ds.v === "1"; break;
+      case "audpick": if (S.phase === "los") S.audSel = S.audSel === ds.v ? null : ds.v; break;
+      case "audible": if (S.phase === "los") { audible(S.audSel); window.scrollTo(0, 0); } break;
+      case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
+      case "pick": S.sel = ds.v; break;
+      case "pkg": S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
+      case "lock": lock(); window.scrollTo(0, 0); break;
+      case "cont": cont(); window.scrollTo(0, 0); break;
+      case "pat": doPAT(ds.v); break;
+      case "kick": if (S.phase === "kickchoice") { doKickChoice(ds.v); window.scrollTo(0, 0); } break;
+      case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
+      case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
+      case "to": callTimeout(+ds.t); break;
+      case "spike": if (S.clockRunning && S.down <= 3) S.spikeNext = !S.spikeNext; break;
+      case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); window.scrollTo(0, 0); break; }
+      case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
+      case "end":
+        if (S.confirmEnd) { S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; }
+        else { S.confirmEnd = true; clearTimeout(endTimer); endTimer = setTimeout(() => { if (S.confirmEnd) { S.confirmEnd = false; render(); } }, 3500); }
+        break;
+      default: return;
+    }
+    if (a !== "end") S.confirmEnd = false;
+    save(); render();
+    Sound.play(cuesFor(a, pre));
+  }
+
+  function start(data) {
+    S = (data && data.state) || loadSaved() || { v: 1, phase: "setup", draft: defaultDraft() };
+    if (S.phase === "setup" && !S.draft) S.draft = defaultDraft();
+    if (S.teams && !S.tos) { S.tos = S.quarter >= 5 ? [2, 2] : [3, 3]; S.clockRunning = false; }
+    render();
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("click", e => { const b = e.target.closest("[data-a]"); if (b) act(b.dataset.a, b.dataset); });
+    document.addEventListener("input", e => { const el = e.target; if (el.matches && el.matches("input[data-t]") && S.draft) { S.draft.t[+el.dataset.t].name = el.value; save(); } });
+    window.claude?.hot?.snapshot?.(() => ({ state: S }));
+    window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+  } else {
+    // Headless test hook
+    globalThis.__sim = { initGame, cont, cuesFor, act, get S() { return S; } };
+  }
+})();
+</script>
+
+</body></html>
