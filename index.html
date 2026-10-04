@@ -132,6 +132,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
 .seg button { flex: 1; appearance: none; border: 0; background: transparent; padding: 10px 6px; font-weight: 600; font-size: 15px; }
 .seg button + button { border-left: 1.5px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.codein { flex: 1 1 0; width: 0; min-width: 0; font: 600 20px var(--mono); letter-spacing: .2em; text-transform: uppercase; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.bigcode { font-family: var(--display); font-weight: 800; font-size: clamp(64px, 22vw, 96px); letter-spacing: .08em; line-height: 1; }
+.linkline { font-family: var(--mono); font-size: 12px; color: var(--muted); word-break: break-all; }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.vs .side { border-top: 5px solid var(--team); background: var(--card); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.vs .side .nm { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1.05; overflow-wrap: anywhere; }
+.vs .at { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.dots::after { content: ""; animation: dots 1.4s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
 .steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 
 /* Handoff */
@@ -212,6 +221,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 </style>
 
 <div class="wrap" id="app"></div>
+
+<!-- Online play: Firebase Realtime Database. The project's settings live in firebase-config.js. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
 
 <script>
 (function () {
@@ -345,6 +359,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   const fx = (team, spot) => team === 0 ? spot : 100 - spot;
   const bothHuman = () => !S.teams[0].cpu && !S.teams[1].cpu;
+  // Pass-the-phone handoff screens only make sense when both coaches share one device
+  const passPhone = () => bothHuman() && !NET.live;
   const kickDist = () => 100 - S.spot + 18;
   function fgProb(d) {
     if (d <= 30) return .97;
@@ -478,11 +494,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.offCall = null; S.defCall = null; S.sel = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock };
     S.offPkg = null; S.defPkg = null;
-    if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = pkgMem(S.poss).off; S.phase = bothHuman() ? "handoff" : "call"; }
+    if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
     else { S.offPkg = cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
   }
   function defStep() {
-    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = pkgMem(1 - S.poss).def; S.phase = bothHuman() ? "handoff" : "call"; }
+    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
     else { S.defPkg = cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
   }
   /* ---------- Audibles ---------- */
@@ -501,7 +517,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.look = makeLook();
     if (S.teams[S.poss].cpu) { cpuAudible(); resolve(); return; }
     S.audSel = null;
-    if (bothHuman()) { S.side = "aud"; S.phase = "handoff"; } else S.phase = "los";
+    S.side = "aud"; S.phase = passPhone() ? "handoff" : "los";
   }
   function audible(to) {
     if (to && to !== S.offCall && OFFP[to]) { S.aud = { from: S.offCall, to }; S.offCall = to; }
@@ -1248,7 +1264,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
 
   /* ---------- Persistence ---------- */
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function save() { if (NET.live || /^(net|connecting|lobby)/.test(S.phase || "")) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   function loadSaved() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
 
   /* ---------- Rendering ---------- */
@@ -1290,35 +1306,58 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   const bannerHtml = () => S.banner ? `<p class="banner">${esc(S.banner)}</p>` : "";
 
-  function vSetup() {
-    const d = S.draft;
-    const teamCfg = i => `
-      <section class="panel teamcfg" style="--team:${d.t[i].color}" aria-label="${i === 0 ? "Home" : "Away"} team">
-        <div style="display:grid;gap:6px"><label for="t${i}name">${i === 0 ? "Home team" : "Away team"}</label>
+  function teamCfgHtml(d, i, o) {
+    o = o || {};
+    const label = o.label || (i === 0 ? "Home team" : "Away team");
+    return `
+      <section class="panel teamcfg" style="--team:${d.t[i].color}" aria-label="${esc(label)}">
+        <div style="display:grid;gap:6px"><label for="t${i}name">${esc(label)}</label>
         <input type="text" id="t${i}name" data-t="${i}" maxlength="20" value="${esc(d.t[i].name)}" autocomplete="off"></div>
         <div style="display:grid;gap:6px"><label>Color</label><div class="swatches">
-          ${COLORS.map(c => `<button class="sw" style="--c:${c}" data-a="color" data-t="${i}" data-c="${c}" aria-pressed="${d.t[i].color === c}" aria-label="Color ${c}"></button>`).join("")}
+          ${COLORS.filter(c => c !== o.taken).map(c => `<button class="sw" style="--c:${c}" data-a="color" data-t="${i}" data-c="${c}" aria-pressed="${d.t[i].color === c}" aria-label="Color ${c}"></button>`).join("")}
         </div></div>
-        <div style="display:grid;gap:6px"><label>Coordinator</label><div class="seg">
+        ${o.noCtrl ? "" : `<div style="display:grid;gap:6px"><label>Coordinator</label><div class="seg">
           <button data-a="ctrl" data-t="${i}" data-v="0" aria-pressed="${!d.t[i].cpu}">Human</button>
           <button data-a="ctrl" data-t="${i}" data-v="1" aria-pressed="${d.t[i].cpu}">Computer</button>
-        </div></div>
+        </div></div>`}
       </section>`;
-    return `
-      <div class="masthead">
-        <p class="eyebrow">Pass-the-phone football</p>
-        <h1>Call Sheet <em>Football</em></h1>
-        <p class="muted">Two coordinators, one phone. Both sides call blind, then the play runs.</p>
-      </div>
-      ${teamCfg(0)}${teamCfg(1)}
-      <section class="panel">
-        <div style="display:grid;gap:6px"><span class="eyebrow">Game length</span><div class="seg">
+  }
+  function gameOptsHtml(d) {
+    return `<div style="display:grid;gap:6px"><span class="eyebrow">Game length</span><div class="seg">
           ${QLENS.map(q => `<button data-a="qlen" data-v="${q.s}" aria-pressed="${d.qLen === q.s}">${q.l}<br><small class="muted">${q.d}</small></button>`).join("")}
         </div></div>
         <div style="display:grid;gap:6px"><span class="eyebrow">Audibles</span><div class="seg">
           <button data-a="aud" data-v="1" aria-pressed="${d.aud !== false}">On<br><small class="muted">Read the look, change the play</small></button>
           <button data-a="aud" data-v="0" aria-pressed="${d.aud === false}">Off<br><small class="muted">Faster, fewer handoffs</small></button>
-        </div></div>
+        </div></div>`;
+  }
+  function vSetup() {
+    const d = S.draft;
+    const online = netReady()
+      ? `<div style="display:grid;gap:10px">
+          <button class="btn" data-a="netcreate">Create a game</button>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="joincode" class="codein" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" aria-label="Game code">
+            <button class="btn ghost" style="width:auto;flex:none" data-a="netcode">Join</button>
+          </div>
+        </div>`
+      : `<p class="muted" style="font-size:14px">Online play isn't switched on for this copy of the game yet.</p>`;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Coordinator football</p>
+        <h1>Call Sheet <em>Football</em></h1>
+        <p class="muted">Two coordinators. Both sides call blind, then the play runs.</p>
+      </div>
+      ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
+      <section class="panel">
+        <div style="display:grid;gap:4px"><span class="eyebrow">Play a friend online</span>
+        <p class="muted" style="font-size:15px">Each of you plays on your own phone, from anywhere. Create a game and send the link, or type the code your friend sent you.</p></div>
+        ${online}
+      </section>
+      <p class="sechead">Or play on one phone</p>
+      ${teamCfgHtml(d, 0)}${teamCfgHtml(d, 1)}
+      <section class="panel">
+        ${gameOptsHtml(d)}
         <p class="muted" style="font-size:14px">The crowd pulls for the home team. No sound? Check that your iPhone's silent switch is off.</p>
         <ol class="steps">
           <li>The offense secretly locks in a play.</li>
@@ -1447,8 +1486,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     else stat = S.toNote ? S.toNote + " Clock stopped." : "Clock stopped until the next snap.";
     let btns = "";
     if (S.clockRunning) {
-      [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
-      if (!t[o].cpu && S.down <= 3) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
+      [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0 && (!NET.live || i === NET.me)) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
+      if (!t[o].cpu && S.down <= 3 && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
     }
     return `<div class="clockbox"><p class="cstat">${esc(stat)}</p>${btns ? `<div class="clockbtns">${btns}</div>` : ""}</div>`;
   }
@@ -1483,7 +1522,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         ${clockBox()}
         ${field({ ball: r.toX, los: r.fromX, from: r.fromX })}
         ${S.periodOver && !S.needPAT && !S.tryChoice && !S.retryTwo ? `<p class="banner">That's the end of ${S.quarter === 5 ? "overtime" : "the " + ord(S.quarter) + " quarter"}.</p>` : ""}
-        <button class="btn" data-a="cont">${label}</button>
+        ${netResultButton(label)}
       </section>`;
   }
 
@@ -1579,14 +1618,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <p class="eyebrow">Final${S.quarter === 5 ? " · Overtime" : ""}</p>
         <h2>${tie ? "It ends in a tie" : `<span>${esc(S.teams[w].name)}</span> win ${S.teams[w].score}-${S.teams[1 - w].score}`}</h2>
         <div class="choices">
-          <button class="btn" data-a="rematch">Rematch</button>
-          <button class="btn ghost" data-a="newsetup">New teams</button>
+          ${NET.live && NET.me < 0 ? "" : `<button class="btn" data-a="rematch">Rematch</button>`}
+          ${NET.live ? `<button class="btn ghost" data-a="netleave">Leave game</button>` : `<button class="btn ghost" data-a="newsetup">New teams</button>`}
         </div>
       </section>`;
   }
 
   function vExtras() {
-    if (S.phase === "setup") return "";
+    if (S.phase === "setup" || !S.teams) return "";
     const t = S.teams;
     const rows = [["Total yards", "yds"], ["Rushing", "rush"], ["Passing", "pass"], ["First downs", "fd"], ["Turnovers", "to"], ["Penalties", "pen"], ["Plays", "plays"]];
     const cell = (st, k) => k === "pen" ? `${st.pen || 0}-${st.penYds || 0}` : st[k];
@@ -1599,20 +1638,24 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <span class="cl"><span class="tm"></span>${esc(e.off)}${e.def ? ` vs ${esc(e.def)}` : ""}</span>
         <span>${esc(e.text)}</span>
       </li>`).join("")}</ol></details>` : "";
-    const foot = S.phase !== "final" ? `<div class="foot"><button class="linkbtn ${S.confirmEnd ? "warn" : ""}" data-a="end">${S.confirmEnd ? "Tap again to end this game" : "End game"}</button></div>` : "";
+    const foot = S.phase !== "final" && !(NET.live && NET.me < 0) ? `<div class="foot"><button class="linkbtn ${S.confirmEnd ? "warn" : ""}" data-a="end">${S.confirmEnd ? "Tap again to end this game" : "End game"}</button></div>` : "";
     return box + log + foot;
   }
 
   function render() {
     if (typeof document === "undefined") return;
     const app = document.getElementById("app");
-    const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, los: vLOS, kickchoice: vKick };
+    const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, los: vLOS, kickchoice: vKick,
+      netcreate: vNetCreate, netjoin: vNetJoin, connecting: vConnecting, lobby: vLobby };
+    let view = views[S.phase] || vSetup;
+    // Online: when it's the other coach's decision, show a waiting screen instead of their call sheet
+    if (NET.live && WAIT_PHASES.has(S.phase) && actor() !== NET.me) view = vWait;
     const on = !Sound.muted();
     const icon = on
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
     const top = `<div class="topbar"><button class="soundbtn" data-a="mute" aria-pressed="${on}">${icon}Sound ${on ? "on" : "off"}</button></div>`;
-    app.innerHTML = top + (views[S.phase] || vSetup)() + vExtras();
+    app.innerHTML = top + view() + vExtras();
   }
 
   /* ---------- Sound ---------- */
@@ -1904,17 +1947,324 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return cues;
   }
 
+  /* ---------- Online play ---------- */
+  // Each game lives at games/<CODE> in Firebase Realtime Database as
+  // { ver, wid, by, act, state }. "state" is the whole game state S as a JSON string.
+  // Whoever makes a decision runs the simulation on their own phone, then writes the new
+  // state; the other phone picks it up and redraws. A write only succeeds if nobody else
+  // wrote first (checked with "ver"), so two phones can never fork the game.
+  const NET = { live: false, me: -1, code: null, ref: null, db: null, ver: 0, wid: null, remote: null, err: null, busy: false, copied: false, status: "" };
+  const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty"]);
+  const NET_COMMIT = new Set(["lock", "audible", "snap", "cont", "pat", "kick", "try", "pen", "to", "spike", "kickoff", "rematch", "end"]);
+  const DEVICE = (() => {
+    let id = null;
+    try { id = localStorage.getItem("csf-device"); } catch (e) {}
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+      try { localStorage.setItem("csf-device", id); } catch (e) {}
+    }
+    return id;
+  })();
+  const newWid = () => DEVICE + "-" + Math.random().toString(36).slice(2, 8);
+  const fbCfg = () => (typeof window !== "undefined" && window.FIREBASE_CONFIG) || null;
+  function netReady() {
+    const c = fbCfg();
+    return typeof firebase !== "undefined" && !!c && !!c.apiKey && !!c.databaseURL;
+  }
+  function netDb() {
+    if (!NET.db) {
+      const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(fbCfg());
+      NET.db = app.database();
+    }
+    return NET.db;
+  }
+  const inviteLink = code => (typeof location !== "undefined" ? location.origin + location.pathname : "") + "?g=" + code;
+  function setUrl(code) {
+    try { history.replaceState(null, "", code ? "?g=" + code : location.pathname); } catch (e) {}
+  }
+  // Whose decision the current screen is: a team index, or -1 when either coach can act
+  function actor() {
+    switch (S.phase) {
+      case "call": return S.side === "off" ? S.poss : 1 - S.poss;
+      case "los": return S.poss;
+      case "pat": return S.patTeam;
+      case "trychoice": return S.tryChoice ? S.tryChoice.team : -1;
+      case "kickchoice": return S.kickChoice ? S.kickChoice.team : -1;
+      case "penalty": return S.pen ? S.pen.chooser : -1;
+      default: return -1;
+    }
+  }
+  function netCan(a, ds) {
+    const me = NET.me;
+    if (["pick", "pkg", "audpick"].includes(a)) return actor() === me;
+    if (me < 0) return false;
+    switch (a) {
+      case "lock": return S.phase === "call" && actor() === me;
+      case "audible": case "snap": return S.phase === "los" && actor() === me;
+      case "cont": return S.phase === "result";
+      case "pat": return S.phase === "pat" && actor() === me;
+      case "kick": return S.phase === "kickchoice" && actor() === me;
+      case "try": return S.phase === "trychoice" && actor() === me;
+      case "pen": return S.phase === "penalty" && actor() === me;
+      case "to": return S.phase === "result" && +ds.t === me;
+      case "spike": return S.phase === "result" && S.poss === me;
+      case "kickoff": return S.phase === "lobby" && me === 0 && !!S.online.seats[1] && !!S.draft.t[1];
+      case "rematch": return S.phase === "final";
+      case "end": return !!S.teams;
+      default: return false;
+    }
+  }
+  // Both coaches tap "Next play" before the game moves on, so neither misses a result
+  function netReadyTap() {
+    const id = S.last ? S.last.id : 0;
+    if (!S.ready || S.ready.id !== id) S.ready = { id, who: [false, false] };
+    S.ready.who[NET.me] = true;
+    if (S.ready.who[0] && S.ready.who[1]) { S.ready = null; cont(); }
+  }
+  function preSnap(a) {
+    const pre = S && S.teams ? { teams: true, snap: S.snap, quarter: S.quarter, phase: S.phase, scores: [S.teams[0].score, S.teams[1].score], lastId: S.last && S.last.id } : { phase: S && S.phase };
+    if (a === "pen" && S && S.pen && S.pen.pre) pre.scores = S.pen.pre.scores.slice();
+    return pre;
+  }
+  // Take the database's copy of the game as the truth and redraw
+  function adopt(val, sounds) {
+    if (!val || !val.state) return;
+    if (NET.live && val.wid && val.wid === NET.wid) return;
+    if (NET.live && val.ver < NET.ver) return;
+    let st;
+    try { st = JSON.parse(val.state); } catch (e) { return; }
+    const pre = preSnap(val.act);
+    S = st; NET.ver = val.ver; NET.wid = val.wid; NET.live = true; NET.err = null;
+    NET.me = S.online && S.online.seats ? S.online.seats.indexOf(DEVICE) : -1;
+    render();
+    if (sounds && val.by !== DEVICE) Sound.play(cuesFor(val.act, pre));
+  }
+  function netPush(a, retried) {
+    const ref = NET.ref; if (!ref) return;
+    const json = JSON.stringify(S), base = NET.ver, wid = newWid();
+    NET.ver = base + 1; NET.wid = wid;
+    ref.transaction(cur => {
+      if (!cur || cur.ver !== base) return; // someone else moved first: abort
+      return { ver: base + 1, wid, by: DEVICE, act: a, state: json, t: Date.now() };
+    }, (err, committed, snap) => {
+      if (committed) return;
+      const v = snap && snap.val();
+      if (v) { NET.wid = null; NET.ver = 0; adopt(v, true); }
+      // A "Next play" tap that collided with the other coach's tap is simply replayed
+      if (a === "cont" && !retried && NET.live && netCan("cont", {})) { netReadyTap(); netPush("cont", true); render(); }
+    });
+  }
+  function onValue(snap) {
+    const val = snap.val();
+    if (!val || !val.state) {
+      if (!NET.live) { netDisconnect(); NET.err = `No game found with code ${NET.lastCode}.`; S = { v: 1, phase: "setup", draft: defaultDraft() }; setUrl(null); render(); }
+      return;
+    }
+    if (NET.live) { adopt(val, true); return; }
+    let st; try { st = JSON.parse(val.state); } catch (e) { return; }
+    const seats = (st.online && st.online.seats) || [];
+    if (seats.indexOf(DEVICE) >= 0) { adopt(val, false); setUrl(NET.code); return; }
+    if (st.phase === "lobby" && !seats[1]) {
+      NET.remote = st; NET.ver = val.ver;
+      if (S.phase !== "netjoin") {
+        const host = st.draft.t[0], mine = (S.draft && S.draft.t && S.draft.t[1]) || { name: "Visitors", color: COLORS[1] };
+        const color = mine.color !== host.color ? mine.color : COLORS.find(c => c !== host.color);
+        S = { v: 1, phase: "netjoin", draft: { t: [host, { name: mine.name, color, cpu: false }], qLen: st.draft.qLen, aud: st.draft.aud } };
+        render();
+      }
+      return;
+    }
+    // Two players are already in: this phone can watch
+    adopt(val, false);
+  }
+  function netConnect(code) {
+    code = String(code || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+    if (code.length !== 4) { NET.err = "Game codes are 4 letters."; render(); return; }
+    if (!netReady()) { NET.err = "Online play isn't set up yet."; render(); return; }
+    netDisconnect();
+    NET.code = NET.lastCode = code; NET.err = null;
+    S = { v: 1, phase: "connecting", draft: (S && S.draft) || defaultDraft() };
+    render();
+    NET.ref = netDb().ref("games/" + code);
+    NET.ref.on("value", onValue, () => { netDisconnect(); NET.err = "Couldn't reach the game server. Check your connection and try again."; S = { v: 1, phase: "setup", draft: defaultDraft() }; render(); });
+  }
+  function netDisconnect() {
+    if (NET.ref) { try { NET.ref.off(); } catch (e) {} }
+    Object.assign(NET, { live: false, me: -1, code: null, ref: null, ver: 0, wid: null, remote: null, busy: false, copied: false });
+  }
+  function netCreate(tries) {
+    tries = tries || 0;
+    if (!netReady()) return;
+    const d = S.draft;
+    const host = { name: (d.t[0].name || "").trim() || "Home", color: d.t[0].color, cpu: false };
+    let code = ""; for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    const lobby = { v: 1, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
+    const wid = newWid(), ref = netDb().ref("games/" + code);
+    NET.busy = true; NET.err = null; render();
+    ref.transaction(cur => cur ? undefined : { ver: 1, wid, by: DEVICE, act: "create", state: JSON.stringify(lobby), t: Date.now() }, (err, committed) => {
+      if (err) { NET.busy = false; NET.err = "Couldn't create the game. Check your connection and try again."; render(); return; }
+      if (!committed) { if (tries < 5) netCreate(tries + 1); else { NET.busy = false; NET.err = "Couldn't find a free game code. Try again."; render(); } return; }
+      netDisconnect();
+      NET.code = NET.lastCode = code; NET.ref = ref;
+      ref.on("value", onValue);
+      setUrl(code);
+    });
+  }
+  function netJoin() {
+    const ref = NET.ref; if (!ref || S.phase !== "netjoin") return;
+    const mine = S.draft.t[1], wid = newWid();
+    const me = { name: (mine.name || "").trim() || "Visitors", color: mine.color, cpu: false };
+    NET.busy = true; render();
+    ref.transaction(cur => {
+      if (!cur || !cur.state) return;
+      const st = JSON.parse(cur.state);
+      if (st.phase !== "lobby" || (st.online.seats[1] && st.online.seats[1] !== DEVICE)) return;
+      if (me.color === st.draft.t[0].color) me.color = COLORS.find(c => c !== st.draft.t[0].color);
+      st.online.seats[1] = DEVICE; st.draft.t[1] = me;
+      return { ver: cur.ver + 1, wid, by: DEVICE, act: "join", state: JSON.stringify(st), t: Date.now() };
+    }, (err, committed, snap) => {
+      NET.busy = false;
+      if (!committed) { NET.err = err ? "Couldn't join. Check your connection and try again." : "Someone else joined this game first."; S = { v: 1, phase: "setup", draft: defaultDraft() }; netDisconnect(); setUrl(null); render(); return; }
+      adopt(snap.val(), false); setUrl(NET.code);
+    });
+  }
+  function netAct(a) {
+    switch (a) {
+      case "netcreate": NET.err = null; S = { v: 1, phase: "netcreate", draft: S.draft || defaultDraft() }; break;
+      case "netgo": netCreate(); return;
+      case "netcode": { const el = typeof document !== "undefined" && document.getElementById("joincode"); netConnect(el ? el.value : ""); return; }
+      case "netjoin": netJoin(); return;
+      case "netshare": {
+        const url = inviteLink(NET.code), text = `Play Call Sheet Football with me. Game code ${NET.code}`;
+        if (typeof navigator !== "undefined" && navigator.share) { navigator.share({ title: "Call Sheet Football", text, url }).catch(() => {}); return; }
+        try { navigator.clipboard.writeText(url).then(() => { NET.copied = true; render(); }); } catch (e) {}
+        return;
+      }
+      case "netback": case "netleave": {
+        netDisconnect(); setUrl(null); NET.err = null;
+        S = loadSaved() || { v: 1, phase: "setup", draft: defaultDraft() };
+        if (S.phase !== "setup") S = { v: 1, phase: "setup", draft: S.cfg ? JSON.parse(JSON.stringify(S.cfg)) : defaultDraft() };
+        break;
+      }
+      default: return;
+    }
+    render(); if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0);
+  }
+
+  /* ---------- Online screens ---------- */
+  const qlenLabel = q => `${Math.round(q / 60)}-minute`;
+  function callName(id) {
+    return ({ punt: "Punt", fg: "Field goal", kneel: "Kneel down", fp: "Fake punt", ffg: "Fake field goal" })[id] || (OFFP[id] ? OFFP[id].name : DEFP[id] ? DEFP[id].name : "");
+  }
+  function vNetCreate() {
+    const d = S.draft;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Online game</p>
+        <h1>Your <em>team</em></h1>
+        <p class="muted">You'll be the home team. Your friend sets up their own team when they join.</p>
+      </div>
+      ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
+      ${teamCfgHtml(d, 0, { label: "Your team", noCtrl: true })}
+      <section class="panel">${gameOptsHtml(d)}</section>
+      <button class="btn" data-a="netgo" ${NET.busy ? "disabled" : ""}>${NET.busy ? "Creating game..." : "Create game"}</button>
+      <div class="foot"><button class="linkbtn" data-a="netback">Back</button></div>`;
+  }
+  function vNetJoin() {
+    const d = S.draft, host = d.t[0];
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Game ${esc(NET.code)} · ${esc(qlenLabel(d.qLen))} quarters · audibles ${d.aud !== false ? "on" : "off"}</p>
+        <h1>Take on the <em style="color:${host.color}">${esc(host.name)}</em></h1>
+        <p class="muted">You'll be the away team. Pick your name and colors.</p>
+      </div>
+      ${teamCfgHtml(d, 1, { label: "Your team", noCtrl: true, taken: host.color })}
+      <button class="btn" data-a="netjoin" ${NET.busy ? "disabled" : ""}>${NET.busy ? "Joining..." : "Join game"}</button>
+      <div class="foot"><button class="linkbtn" data-a="netback">Back</button></div>`;
+  }
+  function vConnecting() {
+    return `
+      <div class="masthead"><p class="eyebrow">Online game</p><h1>Call Sheet <em>Football</em></h1></div>
+      <section class="panel"><p class="muted dots">Connecting to game ${esc(NET.code || "")}</p></section>
+      <div class="foot"><button class="linkbtn" data-a="netback">Cancel</button></div>`;
+  }
+  function vLobby() {
+    const [h, g] = S.draft.t, me = NET.me, code = S.online.code;
+    const side = (t, where) => t
+      ? `<div class="side" style="--team:${t.color}"><div class="at">${where}</div><div class="nm">${esc(t.name)}</div></div>`
+      : `<div class="side" style="--team:var(--line)"><div class="at">${where}</div><div class="nm muted dots">Waiting</div></div>`;
+    const vs = `<div class="vs">${side(g, "Away")}<span class="at">at</span>${side(h, "Home")}</div>`;
+    let body;
+    if (me === 0 && !g) body = `
+      <section class="panel">
+        <p class="eyebrow">Game code</p>
+        <div class="bigcode">${esc(code)}</div>
+        <p>Send your friend the invite link. They'll pick their team and join, then you kick off.</p>
+        <button class="btn" data-a="netshare">${NET.copied ? "Link copied" : "Send invite link"}</button>
+        <p class="linkline">${esc(inviteLink(code))}</p>
+      </section>${vs}`;
+    else if (me === 0) body = `${vs}
+      <section class="panel"><p><b>${esc(g.name)}</b> are in. ${esc(qlenLabel(S.draft.qLen))} quarters, audibles ${S.draft.aud !== false ? "on" : "off"}.</p>
+      <button class="btn" data-a="kickoff">Kick off</button></section>`;
+    else body = `${vs}
+      <section class="panel"><p class="muted dots">You're in. Waiting for ${esc(h.name)} to kick off</p></section>`;
+    return `
+      <div class="masthead"><p class="eyebrow">Online game · ${esc(code)}</p><h1>Call Sheet <em>Football</em></h1></div>
+      ${body}
+      <div class="foot"><button class="linkbtn" data-a="netleave">Leave game</button></div>`;
+  }
+  function vWait() {
+    const who = actor(), tm = S.teams[who], o = S.poss;
+    let eyebrow = S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(o, S.spot)}`, msg = "", mine = "";
+    switch (S.phase) {
+      case "call":
+        if (S.side === "off") msg = `${tm.name} are calling their play. You'll call your defense next.`;
+        else {
+          msg = `${tm.name} are calling their defense.`;
+          if (NET.me === o) mine = `<div class="mycall" style="--team:${S.teams[o].color}"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short : ""}</span><span class="nm">${esc(callName(S.offCall))}</span></div>`;
+        }
+        break;
+      case "los": msg = `${tm.name} are reading your defense at the line and may audible.`;
+        if (NET.me === 1 - o && S.defCall) mine = `<div class="mycall" style="--team:${S.teams[1 - o].color}"><span class="eyebrow">Your call · ${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short : ""}</span><span class="nm">${esc(callName(S.defCall))}</span></div>`;
+        break;
+      case "pat": eyebrow = "Point after"; msg = `${tm.name} are deciding: kick the extra point or go for two.`; break;
+      case "trychoice": eyebrow = "Point after"; msg = `${tm.name} are deciding: go for two again or kick it.`; break;
+      case "kickchoice": eyebrow = "Kickoff"; msg = `${tm.name} are deciding whether to kick deep or try an onside kick.`; break;
+      case "penalty": eyebrow = "Flag on the play"; msg = `${PEN[S.pen.code] ? PEN[S.pen.code].name + ". " : ""}${tm.name} are deciding whether to accept the penalty.`; break;
+    }
+    return `${board()}
+      ${S.phase === "call" ? bannerHtml() : ""}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(eyebrow)}</p>
+        <h2>Waiting on the <span>${esc(tm.name)}</span></h2>
+        <p class="muted">${esc(msg)}</p>
+      </section>
+      ${mine}
+      ${liveField()}`;
+  }
+  function netResultButton(label) {
+    if (!NET.live) return `<button class="btn" data-a="cont">${label}</button>`;
+    if (NET.me < 0) return "";
+    const rd = S.ready && S.last && S.ready.id === S.last.id ? S.ready.who : [false, false], other = 1 - NET.me;
+    if (rd[NET.me]) return `<button class="btn" disabled>Waiting for ${esc(name(other))}</button>`;
+    return `${rd[other] ? `<p class="muted" style="font-size:14px">${esc(name(other))} are ready.</p>` : ""}<button class="btn" data-a="cont">${label}</button>`;
+  }
+
   /* ---------- Events ---------- */
   let endTimer = null;
   function act(a, ds) {
-    const pre = S.teams ? { teams: true, snap: S.snap, quarter: S.quarter, phase: S.phase, scores: [S.teams[0].score, S.teams[1].score], lastId: S.last && S.last.id } : { phase: S.phase };
-    if (a === "pen" && S.pen && S.pen.pre) pre.scores = S.pen.pre.scores.slice();
+    const pre = preSnap(a);
     if (a === "mute") { const on = Sound.toggle(); render(); if (on) Sound.play([["whistle", 0, .25]]); return; }
+    if (a.startsWith("net")) { netAct(a); return; }
+    if (NET.live && !netCan(a, ds)) return;
+    const online = NET.live ? S.online : null;
+    const toLobby = () => ({ v: 1, phase: "lobby", draft: JSON.parse(JSON.stringify(S.cfg)), online });
     switch (a) {
       case "color": S.draft.t[+ds.t].color = ds.c; break;
       case "ctrl": S.draft.t[+ds.t].cpu = ds.v === "1"; break;
       case "qlen": S.draft.qLen = +ds.v; break;
-      case "kickoff": { const draft = S.draft; initGame(draft); S.lastDraft = draft; window.scrollTo(0, 0); break; }
+      case "kickoff": { const draft = S.draft; initGame(draft); if (online) S.online = online; else S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "reveal": S.phase = S.side === "aud" ? "los" : "call"; window.scrollTo(0, 0); break;
       case "aud": S.draft.aud = ds.v === "1"; break;
       case "audpick": if (S.phase === "los") S.audSel = S.audSel === ds.v ? null : ds.v; break;
@@ -1923,29 +2273,35 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "pick": S.sel = ds.v; break;
       case "pkg": S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
       case "lock": lock(); window.scrollTo(0, 0); break;
-      case "cont": cont(); window.scrollTo(0, 0); break;
+      case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
       case "pat": doPAT(ds.v); break;
       case "kick": if (S.phase === "kickchoice") { doKickChoice(ds.v); window.scrollTo(0, 0); } break;
       case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
       case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
       case "to": callTimeout(+ds.t); break;
       case "spike": if (S.clockRunning && S.down <= 3) S.spikeNext = !S.spikeNext; break;
-      case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); window.scrollTo(0, 0); break; }
+      case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); if (online) S.online = online; window.scrollTo(0, 0); break; }
       case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
       case "end":
-        if (S.confirmEnd) { S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; }
+        if (S.confirmEnd) { S = online ? toLobby() : { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; }
         else { S.confirmEnd = true; clearTimeout(endTimer); endTimer = setTimeout(() => { if (S.confirmEnd) { S.confirmEnd = false; render(); } }, 3500); }
         break;
       default: return;
     }
     if (a !== "end") S.confirmEnd = false;
-    save(); render();
+    if (online && NET_COMMIT.has(a) && !(a === "end" && S.confirmEnd)) netPush(a);
+    else save();
+    render();
     Sound.play(cuesFor(a, pre));
   }
 
   function start(data) {
     S = (data && data.state) || loadSaved() || { v: 1, phase: "setup", draft: defaultDraft() };
     if (S.phase === "setup" && !S.draft) S.draft = defaultDraft();
+    // An invite link (?g=CODE) opens straight into that online game
+    let code = null;
+    try { code = new URLSearchParams(location.search).get("g"); } catch (e) {}
+    if (code && netReady()) { if (S.phase !== "setup") S = { v: 1, phase: "setup", draft: S.cfg ? JSON.parse(JSON.stringify(S.cfg)) : defaultDraft() }; netConnect(code); return; }
     if (S.teams && !S.tos) { S.tos = S.quarter >= 5 ? [2, 2] : [3, 3]; S.clockRunning = false; }
     render();
   }
@@ -1957,7 +2313,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
   } else {
     // Headless test hook
-    globalThis.__sim = { initGame, cont, cuesFor, act, get S() { return S; } };
+    globalThis.__sim = { initGame, cont, cuesFor, act, netAct, netConnect, actor, NET, DEVICE, kneelAvailable, puntAvailable, fgAvailable, get S() { return S; }, set S(v) { S = v; } };
   }
 })();
 </script>

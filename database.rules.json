@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "games": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "$code.matches(/^[A-Z]{4}$/) && newData.hasChildren(['ver', 'state'])"
+      }
+    }
+  }
+}

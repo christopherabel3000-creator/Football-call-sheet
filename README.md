@@ -4,7 +4,9 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 ## How to play
 
-Open `index.html` in any web browser. Right now it's pass-the-phone: two people share one device and hand it back and forth between calls. You can also set either team to be coached by the computer.
+**Online:** tap **Create a game**, set up your team, and send your friend the invite link (or the 4-letter code). They pick their team and join, then you kick off. Each of you plays on your own phone.
+
+**One phone:** set up both teams on the start screen and pass the phone between calls. Either team can be coached by the computer.
 
 ## What's in the game
 
@@ -15,6 +17,9 @@ Open `index.html` in any web browser. Right now it's pass-the-phone: two people 
 - Game clock with timeouts, spikes, kneel-downs and the two-minute warning
 - Penalties, play log and box score
 
-## Roadmap
+## How online play works
 
-- Online multiplayer so two players in different places can play each other
+The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoever makes a decision runs the play on their own phone and saves the new state; the other phone picks it up and redraws. A save only goes through if nobody else saved first, so the two phones always agree.
+
+- `firebase-config.js` holds the Firebase project settings (not secret).
+- `database.rules.json` holds the database security rules to paste into the Firebase console.
