@@ -242,6 +242,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { name: "Quick Game", kind: "pass", tag: "Pass", desc: "Slants and outs. Moves the chains.", comp: .66, mean: 7, sd: 3, min: 1, int: .022, sack: .04, air: 6 },
     dp: { name: "Deep Shot", kind: "pass", tag: "Pass", desc: "Go routes and posts. Big gain or nothing.", comp: .38, mean: 27, sd: 9, min: 13, int: .045, sack: .07, air: 22, deep: 1 },
     pa: { name: "Play-Action", kind: "pass", tag: "Pass", desc: "Sell the run, then throw over the top.", comp: .54, mean: 16, sd: 7, min: 6, int: .03, sack: .06, air: 14, deep: 1 },
+    qs: { name: "QB Sneak", kind: "run", tag: "Short yardage", desc: "The quarterback lunges behind the center. Almost never more than a few yards, but hard to stop for one.", mean: 2.0, sd: 1.3, ms: .5, tfl: .06, big: 0, fum: .006, oob: 0, noBig: true, short: true },
+    hm: { name: "Hail Mary", kind: "pass", tag: "Last play", desc: "Everybody sprints to the end zone and the QB heaves it. About 1 in 10 from 45 yards out (1 in 20 against Prevent), and about 1 in 5 gets picked off.", sack: .06, int: .2, air: 60, deep: 1, hail: true },
     te: { name: "Tackle Eligible", kind: "pass", tag: "Trick", desc: "Jumbo only. Throw to the tackle who reported eligible. Short, but a shock.", comp: .74, mean: 4, sd: 2.5, min: 1, int: .02, sack: .03, air: 3, noBig: true }
   };
   const DEFP = {
@@ -282,16 +284,18 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1 },
     dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0 },
     pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2 },
+    qs: { rb: -1, ba: 0, ma: 1, zo: 1, pr: 2, ab: 0 },
+    hm: { rb: 1, ba: 0, ma: 1, zo: -1, pr: -2, ab: 0 },
     te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1 }
   };
   // A kick-block unit plays a normal snap like an all-out blitz; a punt return unit is badly outnumbered
   Object.keys(M).forEach(k => { M[k].blk = M[k].ab; M[k].ret = (k === "dp" || k === "pa") ? 1 : 2; });
   const SACK = {
-    rb: { sc: .01, sp: .01, dp: .02, pa: .02 },
-    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
-    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 },
-    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
-    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 }
+    rb: { sc: .01, sp: .01, dp: .02, pa: .02, hm: .02 },
+    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08 },
+    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03 },
+    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08 },
+    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03 }
   };
   /* ---------- Personnel ---------- */
   const OFF_PKG_IDS = ["p10", "p11", "p12", "p21", "p13", "jumbo"];
@@ -312,12 +316,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   };
   // How well each play suits the offensive package (added to the matchup edge)
   const PKG_FIT = {
-    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1 },
+    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1, qs: -.5, hm: .5 },
     p11: {},
-    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5 },
-    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5 },
-    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5 },
-    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0 }
+    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5 },
+    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5 },
+    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5, qs: .5, hm: -1.5 },
+    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0, qs: 1, hm: -2 }
   };
   // Offensive package against defensive package: edge for runs and for passes
   const CLASH = {
@@ -590,7 +594,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Plays the offense can check to from its current personnel
   // The sideline option is offered only when getting out of bounds stops the clock
   const sidelineOK = () => !S.twoPt && oobWindow() && S.clock > 0;
-  const offIds = pk => OFF_IDS.concat(pk === "jumbo" ? ["te"] : []);
+  // QB sneak: 1 yard or less to go. Hail Mary: end of a half, 30+ yards from the end zone.
+  const sneakOK = () => !S.twoPt && S.toGo <= 1;
+  const hailOK = () => !S.twoPt && (S.quarter === 2 || S.quarter >= 4) && S.clock <= 15 && S.spot <= 70;
+  const offIds = pk => OFF_IDS.concat(sneakOK() ? ["qs"] : [], hailOK() ? ["hm"] : [], pk === "jumbo" ? ["te"] : []);
   const audIds = () => offIds(S.offPkg).filter(id => id !== S.offCall);
   function makeLook() {
     const d = S.defCall, fake = rand() < (DISGUISE[d] ?? .25);
@@ -806,13 +813,25 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       let tfl = Math.max(.02, P.tfl - .05 * m) + (m <= -2 ? .12 : 0);
       if (rand() < tfl) y = -ri(1, 4);
       else {
-        y = Math.max(-2, Math.round(normal(P.mean + 1.8 * m, P.sd)));
-        if (rand() < Math.max(.005, P.big + .025 * m) * (side ? .5 : 1)) y += ri(12, 45);
+        y = Math.max(-2, Math.round(normal(P.mean + (P.ms || 1.8) * m, P.sd)));
+        if (!P.noBig && rand() < Math.max(.005, P.big + .025 * m) * (side ? .5 : 1)) y += ri(12, 45);
         if (side && y > 2) y = Math.max(2, Math.round(y * .8));
       }
       fumble = rand() < P.fum * (m <= -2 ? 2 : 1);
       oob = rand() < (side ? (y > 0 ? .75 : .3) : P.oob);
-      time = ri(4, 7);
+      time = P.short ? ri(3, 5) : ri(4, 7);
+    } else if (P.hail) {
+      // A jump ball in the end zone: the longer the throw, the less likely anyone comes down with it
+      const dist = 100 - S.spot, sackP = Math.max(.01, P.sack + ((SACK[def] || {})[off] || 0) + (OP.sack || 0));
+      if (rand() < sackP) { sack = true; y = -ri(4, 10); fumble = rand() < .1; time = ri(6, 9); }
+      else {
+        const catchP = clamp((.13 - Math.max(0, dist - 40) * .003 + .025 * m) * compMul, .01, .2), intP = clamp(P.int - .02 * m, .08, .3), roll = rand();
+        time = ri(7, 10);
+        if (roll < catchP) y = dist; // caught in the end zone
+        else if (roll < catchP + .03) { y = dist - ri(1, 6); } // caught, but tackled short of the goal line
+        else if (roll < catchP + .03 + intP) int = true;
+        else inc = true;
+      }
     } else {
       const sackP = Math.max(.005, P.sack + ((SACK[def] || {})[off] || 0) + (OP.sack || 0));
       if (rand() < sackP) { sack = true; y = -ri(3, 9); fumble = rand() < .08; time = ri(5, 8); }
@@ -844,7 +863,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     // Interception
     if (int) {
       st.to++;
-      const raw = from + P.air + ri(-2, 4);
+      const raw = P.hail ? 100 : from + P.air + ri(-2, 4);
       if (raw >= 100) {
         startDrive(d, 20);
         Object.assign(r, { head: "Picked off", tone: "bad", text: `${P.name} is intercepted in the end zone. Touchback.`, toX: fx(d, 20) });
@@ -871,7 +890,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
     // Base narration
     if (sack) text = `Sacked for a loss of ${-y}.`;
-    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", te: "The throw to the tackle falls incomplete." }[off];
+    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", hm: "The Hail Mary is batted down in a crowd in the end zone.", te: "The throw to the tackle falls incomplete." }[off];
     else if (P.kind === "run") {
       if (ns >= 100) text = `${P.name}, ${yd(y)}, into the end zone!`;
       else if (y < 0) text = `${P.name} is stuffed in the backfield for a loss of ${-y}.`;
@@ -967,8 +986,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     w.oh = P.kind === "run" ? (off === "or" ? .034 : .028) : (P.deep ? .035 : .016);
     if (def === "rb" || def === "ab" || def === "blk") w.oh += .008;
     if (thrown) w.dh = .008 + (def === "ma" ? .012 : def === "zo" ? .004 : 0);
-    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
-    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005 }[off]) * (def === "ma" ? 1.5 : 1);
+    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03, hm: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
+    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005, hm: .02 }[off]) * (def === "ma" ? 1.5 : 1);
     if (thrown) w.rtp = def === "ab" ? .012 : def === "rb" ? .004 : .0015;
     w.fm = P.kind === "run" ? .004 : complete ? .002 : 0;
     if (S.offPkg === "jumbo" && thrown) w.idf = .015;
@@ -1334,6 +1353,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const kd = kickDist();
     const needTD = late && diff < -3;
     if (fgAvailable() && S.down < 4 && !needTD && kd <= 55) return "fg";
+    // Last snap of a half and out of field goal range: throw it up
+    if (hailOK() && S.clock <= 8 && (S.quarter === 2 || diff <= 0) && !(fgAvailable() && kd <= 55 && diff >= -3)) return "hm";
     if (S.down === 4) {
       if (!needTD && kd <= 52 && (S.toGo > 2 || kd <= 35)) return "fg";
       const goForIt = (late && diff < 0) || (S.toGo <= 1 && S.spot >= 45) || (S.spot >= 65 && S.toGo <= 3 && kd > 52);
@@ -1346,6 +1367,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       }
     }
     const w = { ir: 3, or: 2, sc: 1.5, sp: 3, dp: 1.5, pa: 2 };
+    if (sneakOK()) w.qs = 5;
     if (S.toGo >= 8) { w.ir = 1; w.or = 1; w.sc += 1; w.sp += 2; w.dp += 2; w.pa += 1; }
     if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dp = .7; }
     if (S.spot >= 88) { w.dp = .3; w.ir += 1; }
@@ -1374,6 +1396,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; }
     if (S.toGo <= 2) { w.rb = 4; w.ba = 3; w.pr = .3; }
     if (S.spot >= 88) { w.pr = .2; w.ab = 2; }
+    // Last snap of a half with the offense out of range: drop everyone deep for the Hail Mary
+    if (hailOK() && S.clock <= 8 && !fgAvailable()) { w.pr += 6; w.zo += 1; }
     // Sit on the sideline when the offense needs to stop the clock
     if (sidelineOK() && S.teams[S.poss].score <= S.teams[1 - S.poss].score && (S.quarter >= 4 || S.quarter === 2)) w.zo += 1.5;
     return wpick(w);
