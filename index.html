@@ -359,7 +359,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return fit + (OFFP[off].kind === "run" ? cl.run : cl.pass);
   }
   const COLORS = ["#A3242F", "#22407D", "#C95A17", "#5A3990", "#167370", "#A87C0E", "#2F6A35", "#2B2B2B"];
-  const QLENS = [{ s: 240, l: "Quick", d: "4-min quarters" }, { s: 480, l: "Standard", d: "8-min" }, { s: 900, l: "Full", d: "15-min" }];
+  const QLENS = [{ s: 240, l: "Quick", d: "4-min quarters" }, { s: 480, l: "Standard", d: "8-min" }, { s: 900, l: "Full", d: "15-min" }, { s: 900, ot: true, l: "Overtime", d: "15-min OT" }];
 
   /* ---------- Helpers ---------- */
   const rand = Math.random;
@@ -420,7 +420,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       offCall: null, defCall: null, sel: null, side: "off", phase: "", banner: "", log: [], last: null,
       needPAT: false, patTeam: 0, periodOver: false, gameOver: false,
       tos: [3, 3], clockRunning: false, oobRestart: false, spikeNext: false, toNote: "" };
-    startToss(false, "");
+    if (cfg.ot) { S.quarter = 4; S.clock = 0; startOT("Overtime mode: tied 0-0 after regulation."); } // straight into OT rules
+    else startToss(false, "");
     tossNext();
   }
   function startDrive(team, spot) { if (team !== S.poss) otTurn(team); S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
@@ -1529,7 +1530,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function gameOptsHtml(d) {
     return `<div style="display:grid;gap:6px"><span class="eyebrow">Game length</span><div class="seg">
-          ${QLENS.map(q => `<button data-a="qlen" data-v="${q.s}" aria-pressed="${d.qLen === q.s}">${q.l}<br><small class="muted">${q.d}</small></button>`).join("")}
+          ${QLENS.map(q => `<button data-a="qlen" data-v="${q.ot ? "ot" : q.s}" aria-pressed="${q.ot ? !!d.ot : !d.ot && d.qLen === q.s}">${q.l}<br><small class="muted">${q.d}</small></button>`).join("")}
         </div></div>
         <div style="display:grid;gap:6px"><span class="eyebrow">Audibles</span><div class="seg">
           <button data-a="aud" data-v="1" aria-pressed="${d.aud !== false}">On<br><small class="muted">Read the look, change the play</small></button>
@@ -2320,7 +2321,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (S.phase !== "netjoin") {
         const host = st.draft.t[0], mine = (S.draft && S.draft.t && S.draft.t[1]) || { name: "Visitors", color: COLORS[1] };
         const color = mine.color !== host.color ? mine.color : COLORS.find(c => c !== host.color);
-        S = { v: 1, phase: "netjoin", draft: { t: [host, { name: mine.name, color, cpu: false }], qLen: st.draft.qLen, aud: st.draft.aud } };
+        S = { v: 1, phase: "netjoin", draft: { t: [host, { name: mine.name, color, cpu: false }], qLen: st.draft.qLen, ot: !!st.draft.ot, aud: st.draft.aud } };
         render();
       }
       return;
@@ -2349,7 +2350,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const d = S.draft;
     const host = { name: (d.t[0].name || "").trim() || "Home", color: d.t[0].color, cpu: false };
     let code = ""; for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-    const lobby = { v: 1, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
+    const lobby = { v: 1, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, ot: !!d.ot, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
     const wid = newWid(), ref = netDb().ref("games/" + code);
     NET.busy = true; NET.err = null; render();
     ref.transaction(cur => cur ? undefined : { ver: 1, wid, by: DEVICE, act: "create", state: JSON.stringify(lobby), t: Date.now() }, (err, committed) => {
@@ -2425,7 +2426,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const d = S.draft, host = d.t[0];
     return `
       <div class="masthead">
-        <p class="eyebrow">Game ${esc(NET.code)} · ${esc(qlenLabel(d.qLen))} quarters · audibles ${d.aud !== false ? "on" : "off"}</p>
+        <p class="eyebrow">Game ${esc(NET.code)} · ${d.ot ? "Overtime mode" : esc(qlenLabel(d.qLen)) + " quarters"} · audibles ${d.aud !== false ? "on" : "off"}</p>
         <h1>Take on the <em style="color:${host.color}">${esc(host.name)}</em></h1>
         <p class="muted">You'll be the away team. Pick your name and colors.</p>
       </div>
@@ -2455,7 +2456,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <p class="linkline">${esc(inviteLink(code))}</p>
       </section>${vs}`;
     else if (me === 0) body = `${vs}
-      <section class="panel"><p><b>${esc(g.name)}</b> are in. ${esc(qlenLabel(S.draft.qLen))} quarters, audibles ${S.draft.aud !== false ? "on" : "off"}.</p>
+      <section class="panel"><p><b>${esc(g.name)}</b> are in. ${S.draft.ot ? "Overtime mode" : esc(qlenLabel(S.draft.qLen)) + " quarters"}, audibles ${S.draft.aud !== false ? "on" : "off"}.</p>
       <button class="btn" data-a="kickoff">Kick off</button></section>`;
     else body = `${vs}
       <section class="panel"><p class="muted dots">You're in. Waiting for ${esc(h.name)} to kick off</p></section>`;
@@ -2515,7 +2516,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     switch (a) {
       case "color": S.draft.t[+ds.t].color = ds.c; break;
       case "ctrl": S.draft.t[+ds.t].cpu = ds.v === "1"; break;
-      case "qlen": S.draft.qLen = +ds.v; break;
+      case "qlen": S.draft.ot = ds.v === "ot"; S.draft.qLen = S.draft.ot ? 900 : +ds.v; break;
       case "kickoff": { const draft = S.draft; initGame(draft); if (online) S.online = online; else S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "reveal": S.phase = S.side === "aud" ? "los" : "call"; window.scrollTo(0, 0); break;
       case "aud": S.draft.aud = ds.v === "1"; break;
