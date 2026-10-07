@@ -521,7 +521,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   //   ph 2: the other team has its guaranteed possession
   //   ph 3: both teams have had the ball, sudden death
   // A score by the team without the ball (safety, pick-six, return TD) ends it at any time.
-  // A tie at the end of an OT period starts a new OT period with a new coin toss.
+  // S.ot.r: team that received the kickoff after the most recent OT coin toss.
+  // OT periods run in blocks of four, like halves of two periods each:
+  //   OT1 (and OT5, OT9...): coin toss, then kickoff
+  //   OT2, OT4...: play carries straight over from the previous period (same ball, down, spot)
+  //   OT3 (and OT7...): the team that received after the last toss kicks off
+  // A lead at the end of any OT period wins. Once sudden death starts it lasts the rest of the game,
+  // even through a later coin toss.
   function otState() {
     if (!S.ot && S.quarter >= 5) S.ot = { a: S.poss, ph: 3 }; // a game saved by an older version mid-OT stays sudden death
     return S.ot;
@@ -557,8 +563,16 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const otLen = () => S.cfg.qLen === 240 ? 300 : S.cfg.qLen;
   function startOT(lead) {
     S.quarter++; S.clock = otLen(); S.tos = [2, 2];
-    S.ot = null;
-    startToss(true, `${lead} Both teams get the ball unless the defense scores, then it's sudden death.`);
+    const n = S.quarter - 4, step = (n - 1) % 4, o = n > 1 ? otState() : null;
+    if (!o) { startToss(true, `${lead} Both teams get the ball unless the defense scores, then it's sudden death.`); return; }
+    if (step === 0) { startToss(true, `${lead} New coin toss.${o.ph === 3 ? " Still sudden death: the next score wins." : ""}`); return; }
+    if (step === 2) {
+      const k = o.r !== undefined ? o.r : o.a, rcv = 1 - k;
+      otTurn(rcv);
+      S.banner = `${lead} ${name(k)} received ${n === 3 ? "to start overtime" : `after the ${qLabel(S.quarter - 2)} coin toss`}, so they kick off now. ${kickoff(rcv, false)}`;
+      return;
+    }
+    S.banner = `${lead} Play continues: ${name(S.poss)} keep the ball, ${downText()} at the ${spotText(S.poss, S.spot)}.`;
   }
 
   // ---- Coin toss ----
@@ -578,7 +592,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const did = ch === "receive" ? "elect to receive" : t.ot ? "elect to kick" : "defer to the second half";
     const said = `${name(VISITOR)} call ${t.call}. It's ${t.flip}, so ${name(w)} win the toss and ${did}.`;
     S.toss = null;
-    if (t.ot) S.ot = { a: recv, ph: 1 }; else S.firstRecv = recv;
+    if (t.ot) {
+      if (S.ot) { S.ot.r = recv; otTurn(recv); } // a later OT toss: sudden death (or any open guarantee) carries on
+      else S.ot = { a: recv, ph: 1, r: recv };
+    } else S.firstRecv = recv;
     S.banner = `${t.lead ? t.lead + " " : ""}${said}${recv !== w ? ` ${name(recv)} receive.` : ""} ${kickoff(recv, false)}`;
   }
   // Lets computer coaches make their toss decisions, then kicks off once the toss is settled
@@ -1039,7 +1056,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function applyState(x) {
     S.poss = x.poss; S.spot = x.spot; S.down = x.down; S.toGo = x.toGo; S.needPAT = x.needPAT; S.patTeam = x.patTeam; S.gameOver = x.gameOver;
-    if (x.ot !== undefined) S.ot = x.ot ? { a: x.ot.a, ph: x.ot.ph } : null;
+    if (x.ot !== undefined) S.ot = x.ot ? { a: x.ot.a, ph: x.ot.ph, r: x.ot.r } : null;
     [0, 1].forEach(i => { S.teams[i].score = x.scores[i]; S.teams[i].st = JSON.parse(JSON.stringify(x.st[i])); });
   }
   const downTextOf = x => `${ord(x.down)} & ${x.spot + x.toGo >= 100 ? "Goal" : x.toGo}`;
@@ -1708,7 +1725,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     else if (S.kickChoice) label = "Kickoff";
     else if (S.retryTwo) label = "Replay the try";
     else if (S.gameOver) label = "Final score";
-    else if (S.periodOver) label = S.quarter === 2 ? "Go to halftime" : S.quarter >= 4 ? "End of regulation" : "End of quarter";
+    else if (S.periodOver) label = S.quarter === 2 ? "Go to halftime" : S.quarter >= 5 ? "End of the overtime period" : S.quarter === 4 ? "End of regulation" : "End of quarter";
     return `${board()}
       <section class="panel">
         <div class="calls">
