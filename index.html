@@ -521,8 +521,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const was = S.snap && S.snap.ot;
     if (was && was.ph !== S.ot.ph) r.sub = (r.sub ? r.sub + " " : "") + otNote();
   }
+  // OT periods match the quarter length, except Quick games get 5-minute OT periods
+  const otLen = () => S.cfg.qLen === 240 ? 300 : S.cfg.qLen;
   function startOT(lead) {
-    S.quarter++; S.clock = S.cfg.qLen; S.tos = [2, 2];
+    S.quarter++; S.clock = otLen(); S.tos = [2, 2];
     const r = rand() < .5 ? 0 : 1;
     S.ot = { a: r, ph: 1 };
     S.banner = `${lead} Both teams get the ball unless the defense scores, then it's sudden death. ${name(r)} win the toss and receive. ${kickoff(r, false)}`;
@@ -699,11 +701,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (q === 1 || q === 3) { S.quarter++; S.clock = S.cfg.qLen; S.banner = `End of the ${q === 1 ? "1st" : "3rd"} quarter.`; }
     else if (q === 2) { S.quarter = 3; S.clock = S.cfg.qLen; S.tos = [3, 3]; const r = 1 - S.firstRecv; S.banner = `Halftime. ${name(r)} receive the second-half kickoff. ${kickoff(r, false)}`; }
     else if (S.teams[0].score === S.teams[1].score) startOT(q === 4 ? "Tied after regulation. On to overtime." : "Still tied after overtime. On to another overtime period.");
-    else if (q >= 5 && otState().ph === 2) {
-      // The second team's guaranteed possession carries over into another OT period
-      S.quarter++; S.clock = S.cfg.qLen; S.tos = [2, 2];
-      S.banner = `End of the overtime period. ${name(1 - S.ot.a)} still get to finish their possession, so play goes on.`;
-    } else S.gameOver = true;
+    else S.gameOver = true;
   }
 
   /* ---------- Simulation ---------- */
