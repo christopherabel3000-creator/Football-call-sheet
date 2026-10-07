@@ -388,8 +388,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       offCall: null, defCall: null, sel: null, side: "off", phase: "", banner: "", log: [], last: null,
       needPAT: false, patTeam: 0, periodOver: false, gameOver: false,
       tos: [3, 3], clockRunning: false, oobRestart: false, spikeNext: false, toNote: "" };
-    S.banner = `Coin toss: ${name(recv)} receive. ${kickoff(recv, false)}`;
-    startPlay();
+    startToss(false, "");
+    tossNext();
   }
   function startDrive(team, spot) { if (team !== S.poss) otTurn(team); S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
   // Kickoff: touchbacks to the 35, most kicks returned
@@ -525,9 +525,36 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const otLen = () => S.cfg.qLen === 240 ? 300 : S.cfg.qLen;
   function startOT(lead) {
     S.quarter++; S.clock = otLen(); S.tos = [2, 2];
-    const r = rand() < .5 ? 0 : 1;
-    S.ot = { a: r, ph: 1 };
-    S.banner = `${lead} Both teams get the ball unless the defense scores, then it's sudden death. ${name(r)} win the toss and receive. ${kickoff(r, false)}`;
+    S.ot = null;
+    startToss(true, `${lead} Both teams get the ball unless the defense scores, then it's sudden death.`);
+  }
+
+  // ---- Coin toss ----
+  // The visitors (team 1) call it; the winner chooses to receive or defer (in overtime: receive or kick).
+  const VISITOR = 1;
+  function startToss(ot, lead) { S.toss = { ot, lead, step: "call" }; S.phase = "toss"; S.banner = ""; }
+  function tossCall(c) {
+    const t = S.toss; if (!t || t.step !== "call") return;
+    t.call = c === "tails" ? "tails" : "heads";
+    t.flip = rand() < .5 ? "heads" : "tails";
+    t.winner = t.call === t.flip ? VISITOR : 1 - VISITOR;
+    t.step = "choose";
+  }
+  function tossChoose(ch) {
+    const t = S.toss; if (!t || t.step !== "choose") return;
+    const w = t.winner, recv = ch === "receive" ? w : 1 - w;
+    const did = ch === "receive" ? "elect to receive" : t.ot ? "elect to kick" : "defer to the second half";
+    const said = `${name(VISITOR)} call ${t.call}. It's ${t.flip}, so ${name(w)} win the toss and ${did}.`;
+    S.toss = null;
+    if (t.ot) S.ot = { a: recv, ph: 1 }; else S.firstRecv = recv;
+    S.banner = `${t.lead ? t.lead + " " : ""}${said}${recv !== w ? ` ${name(recv)} receive.` : ""} ${kickoff(recv, false)}`;
+  }
+  // Lets computer coaches make their toss decisions, then kicks off once the toss is settled
+  function tossNext() {
+    const t = S.toss;
+    if (t && t.step === "call" && S.teams[VISITOR].cpu) tossCall(rand() < .5 ? "heads" : "tails");
+    if (S.toss && S.toss.step === "choose" && S.teams[S.toss.winner].cpu) tossChoose(S.toss.ot ? "receive" : "defer");
+    if (S.toss) S.phase = "toss"; else startPlay();
   }
 
   // Kneel-down: offense tied or leading, opponent out of timeouts, 4th-quarter two-minute warning already passed.
@@ -660,6 +687,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.clockRunning = false;
     if (S.periodOver && !S.gameOver) endPeriod();
     if (S.gameOver) { S.phase = "final"; return; }
+    if (S.toss) { tossNext(); return; }
     startPlay();
   }
   function doSpike() {
@@ -1317,18 +1345,18 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
   /* ---------- Rendering ---------- */
   function board() {
-    const t = S.teams, inGame = S.phase !== "final";
+    const t = S.teams, inGame = S.phase !== "final", tossing = S.phase === "toss";
     const team = i => `
       <div class="bteam ${i ? "right" : ""}" style="--team:${t[i].color}">
         <span class="stripe"></span>
-        <div class="id"><span class="abbr">${inGame && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].slice(0, S.quarter >= 5 ? 2 : 3).map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
+        <div class="id"><span class="abbr">${inGame && !tossing && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].slice(0, S.quarter >= 5 ? 2 : 3).map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
         <span class="pts">${t[i].score}</span>
       </div>`;
     return `<header class="board" aria-label="Scoreboard">
       ${team(0)}
       <div class="bmid"><span class="q">${S.phase === "final" ? "FINAL" : qLabel(S.quarter)}</span><span class="clk">${fmtClock(S.clock)}</span></div>
       ${team(1)}
-      ${inGame ? `<div class="sit"><b>${S.twoPt && S.phase !== "result" ? "Two-point try" : downText()}</b><span>Ball on ${spotText(S.poss, S.spot)}</span></div>` : ""}
+      ${tossing ? `<div class="sit"><b>${S.toss && S.toss.ot ? "Overtime coin toss" : "Coin toss"}</b><span>${S.toss && S.toss.ot ? `Tied ${S.teams[0].score}-${S.teams[1].score}` : "Opening kickoff"}</span></div>` : inGame ? `<div class="sit"><b>${S.twoPt && S.phase !== "result" ? "Two-point try" : downText()}</b><span>Ball on ${spotText(S.poss, S.spot)}</span></div>` : ""}
     </header>`;
   }
   function field(opts) {
@@ -1646,6 +1674,32 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         </div>
       </section>`;
   }
+  function vToss() {
+    const t = S.toss, small = "font-family:var(--body);font-weight:500;font-size:14px;text-transform:none";
+    const who = t.step === "call" ? VISITOR : t.winner, tm = S.teams[who];
+    const head = t.ot ? "Overtime coin toss" : "Coin toss";
+    if (t.step === "call") return `${board()}
+      ${t.lead ? `<p class="banner">${esc(t.lead)}</p>` : ""}
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(tm.name)} · ${head}</p>
+        <h2>${esc(tm.name)}, call it in the <span>air</span></h2>
+        <p class="muted">The visiting team makes the call. Whoever wins the toss chooses ${t.ot ? "to receive or kick" : "to receive the opening kickoff or defer to the second half"}.</p>
+        <div class="choices">
+          <button class="btn team" data-a="toss" data-v="heads">Heads</button>
+          <button class="btn ghost" data-a="toss" data-v="tails">Tails</button>
+        </div>
+      </section>`;
+    return `${board()}
+      <p class="banner">${esc(name(VISITOR))} call ${t.call}. It's ${t.flip}!</p>
+      <section class="panel handoff" style="--team:${tm.color}">
+        <p class="eyebrow">${esc(tm.name)} · ${head}</p>
+        <h2><span>${esc(tm.name)}</span> win the toss</h2>
+        <div class="choices">
+          <button class="btn team" data-a="toss" data-v="receive">Receive<br><small style="${small}">Get the ball first${t.ot ? "" : `. ${esc(name(1 - who))} get it to start the 2nd half`}</small></button>
+          <button class="btn ghost" data-a="toss" data-v="${t.ot ? "kick" : "defer"}">${t.ot ? "Kick" : "Defer"}<br><small style="${small}">${t.ot ? `${esc(name(1 - who))} get the ball first` : "Kick off now, get the ball to start the 2nd half"}</small></button>
+        </div>
+      </section>`;
+  }
   function vPAT() {
     const tm = S.teams[S.patTeam];
     return `${board()}
@@ -1693,7 +1747,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function render() {
     if (typeof document === "undefined") return;
     const app = document.getElementById("app");
-    const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, los: vLOS, kickchoice: vKick,
+    const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, los: vLOS, kickchoice: vKick, toss: vToss,
       netcreate: vNetCreate, netjoin: vNetJoin, connecting: vConnecting, lobby: vLobby };
     let view = views[S.phase] || vSetup;
     // Online: when it's the other coach's decision, show a waiting screen instead of their call sheet
@@ -2003,8 +2057,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // wrote first (checked with "ver"), so two phones can never fork the game.
   const NET = { live: false, me: -1, code: null, ref: null, db: null, ver: 0, wid: null, remote: null, err: null, busy: false, copied: false, status: "" };
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty"]);
-  const NET_COMMIT = new Set(["lock", "audible", "snap", "cont", "pat", "kick", "try", "pen", "to", "spike", "kickoff", "rematch", "end"]);
+  const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty", "toss"]);
+  const NET_COMMIT = new Set(["lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "kickoff", "rematch", "end"]);
   const DEVICE = (() => {
     let id = null;
     try { id = localStorage.getItem("csf-device"); } catch (e) {}
@@ -2040,6 +2094,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "trychoice": return S.tryChoice ? S.tryChoice.team : -1;
       case "kickchoice": return S.kickChoice ? S.kickChoice.team : -1;
       case "penalty": return S.pen ? S.pen.chooser : -1;
+      case "toss": return S.toss ? (S.toss.step === "call" ? VISITOR : S.toss.winner) : -1;
       default: return -1;
     }
   }
@@ -2053,6 +2108,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "cont": return S.phase === "result";
       case "pat": return S.phase === "pat" && actor() === me;
       case "kick": return S.phase === "kickchoice" && actor() === me;
+      case "toss": return S.phase === "toss" && actor() === me;
       case "try": return S.phase === "trychoice" && actor() === me;
       case "pen": return S.phase === "penalty" && actor() === me;
       case "to": return S.phase === "result" && +ds.t === me;
@@ -2279,6 +2335,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "pat": eyebrow = "Point after"; msg = `${tm.name} are deciding: kick the extra point or go for two.`; break;
       case "trychoice": eyebrow = "Point after"; msg = `${tm.name} are deciding: go for two again or kick it.`; break;
       case "kickchoice": eyebrow = "Kickoff"; msg = `${tm.name} are deciding whether to kick deep or try an onside kick.`; break;
+      case "toss": eyebrow = S.toss.ot ? "Overtime coin toss" : "Coin toss";
+        msg = S.toss.step === "call" ? `${tm.name} are calling heads or tails.` : `${name(VISITOR)} called ${S.toss.call}. It's ${S.toss.flip}, so ${tm.name} win the toss and are deciding ${S.toss.ot ? "whether to receive or kick" : "whether to receive or defer"}.`; break;
       case "penalty": eyebrow = "Flag on the play"; msg = `${PEN[S.pen.code] ? PEN[S.pen.code].name + ". " : ""}${tm.name} are deciding whether to accept the penalty.`; break;
     }
     return `${board()}
@@ -2289,7 +2347,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <p class="muted">${esc(msg)}</p>
       </section>
       ${mine}
-      ${liveField()}`;
+      ${S.phase === "toss" ? "" : liveField()}`;
   }
   function netResultButton(label) {
     if (!NET.live) return `<button class="btn" data-a="cont">${label}</button>`;
@@ -2324,6 +2382,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
       case "pat": doPAT(ds.v); break;
       case "kick": if (S.phase === "kickchoice") { doKickChoice(ds.v); window.scrollTo(0, 0); } break;
+      case "toss": if (S.phase === "toss" && S.toss) { if (S.toss.step === "call") tossCall(ds.v); else tossChoose(ds.v); tossNext(); window.scrollTo(0, 0); } break;
       case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
       case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
       case "to": callTimeout(+ds.t); break;
