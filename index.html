@@ -233,13 +233,15 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const KEY = "callsheet-football-v1";
 
   /* ---------- Playbook ---------- */
-  const OFF_IDS = ["ir", "or", "sc", "sp", "dp", "pa"];
-  const DEF_IDS = ["rb", "ba", "ma", "zo", "pr", "ab"];
+  const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
+  const DEF_IDS = ["rb", "ba", "ma", "zo", "c3", "pr", "ab", "zb"];
   const OFFP = {
     ir: { name: "Inside Run", kind: "run", tag: "Run", desc: "Downhill between the tackles. Steady and low risk.", mean: 3.8, sd: 2.8, tfl: .08, big: .025, fum: .012, oob: .04 },
     or: { name: "Outside Zone", kind: "run", tag: "Run", desc: "Stretch to the edge. Boom or bust.", mean: 4.0, sd: 5, tfl: .15, big: .05, fum: .015, oob: .35 },
+    dr: { name: "Draw", kind: "run", tag: "Run", desc: "Show pass, then hand it off. Gashes pass rushers and soft coverage, but a disciplined front sniffs it out.", mean: 4.0, sd: 4.2, tfl: .1, big: .04, fum: .012, oob: .05 },
     sc: { name: "Screen", kind: "pass", tag: "Pass", desc: "Let the rush come, then dump it off behind it.", comp: .80, mean: 5, sd: 4.5, min: -3, int: .012, sack: .02, air: 0 },
     sp: { name: "Quick Game", kind: "pass", tag: "Pass", desc: "Slants and outs. Moves the chains.", comp: .66, mean: 7, sd: 3, min: 1, int: .022, sack: .04, air: 6 },
+    ms: { name: "Mesh", kind: "pass", tag: "Pass", desc: "Two receivers cross underneath and rub off each other. Built to beat man coverage.", comp: .70, mean: 6, sd: 3.5, min: 2, int: .018, sack: .035, air: 4 },
     dp: { name: "Deep Shot", kind: "pass", tag: "Pass", desc: "Go routes and posts. Big gain or nothing.", comp: .38, mean: 27, sd: 9, min: 13, int: .045, sack: .07, air: 22, deep: 1 },
     pa: { name: "Play-Action", kind: "pass", tag: "Pass", desc: "Sell the run, then throw over the top.", comp: .54, mean: 16, sd: 7, min: 6, int: .03, sack: .06, air: 14, deep: 1 },
     qs: { name: "QB Sneak", kind: "run", tag: "Short yardage", desc: "The quarterback lunges behind the center. Almost never more than a few yards, but hard to stop for one.", mean: 2.0, sd: 1.3, ms: .5, tfl: .06, big: 0, fum: .006, oob: 0, noBig: true, short: true },
@@ -252,7 +254,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     ma: { name: "Man Coverage", tag: "Coverage", desc: "Tight on quick routes. Beatable deep." },
     zo: { name: "Cover 2 Zone", tag: "Coverage", desc: "Takes away deep shots and screens. Runs find room." },
     pr: { name: "Prevent", tag: "Coverage", desc: "Protect the deep ball. Gives up the short stuff." },
+    c3: { name: "Cover 3", tag: "Coverage", desc: "Three deep, four underneath, an extra man near the box. Solid against the run and the deep ball, soft in the flats." },
     ab: { name: "All-Out Blitz", tag: "Pressure", desc: "Send everyone. Sack or get burned." },
+    zb: { name: "Zone Blitz", tag: "Pressure", desc: "Rush five but drop a lineman into the short zones. Baits screens and hot throws into interceptions. Burned deep." },
     blk: { name: "Block the Kick", tag: "Special teams", desc: "Sell out to block it. Risks roughing the kicker, and a fake would walk right past you." },
     ret: { name: "Punt Return", tag: "Special teams", desc: "Set up a return. Better field position, but soft if they fake or go for it." }
   };
@@ -271,31 +275,40 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     zo: { name: "Two high safeties", hint: "Deep help on both sides. Often Cover 2." },
     pr: { name: "Soft corners, safeties deep", hint: "Playing way off the ball. Often prevent." },
     ab: { name: "Linebackers walked up", hint: "Bodies on the line. Pressure could be coming." },
+    c3: { name: "One high safety, corners bailing", hint: "A single safety deep in the middle and the corners backpedal at the snap. Often Cover 3." },
+    zb: { name: "Linebackers mugging the A-gaps", hint: "Looks like pressure, but one of those rushers might drop. Often a zone blitz."  },
     blk: { name: "Everyone on the line", hint: "The kick-block unit is out there. They're coming after the kick." },
     ret: { name: "Returner back deep", hint: "The punt return unit is on the field. Light up front." }
   };
   // Special teams units can't be disguised: you can see who ran onto the field
-  const DISGUISE = { rb: .3, ba: .25, ma: .4, zo: .33, pr: .28, ab: .45, blk: 0, ret: 0 };
+  const DISGUISE = { rb: .3, ba: .25, ma: .4, zo: .33, c3: .35, pr: .28, ab: .45, zb: .5, blk: 0, ret: 0 };
   // Matchup edge for the offense: +2 great call, -2 the defense guessed right
   const M = {
-    ir: { rb: -2, ba: 0, ma: 1, zo: 1, pr: 1, ab: -1 },
-    or: { rb: -2, ba: 0, ma: 0, zo: 1, pr: 1, ab: 1 },
-    sc: { rb: 1, ba: 0, ma: 0, zo: -1, pr: 1, ab: 2 },
-    sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1 },
-    dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0 },
-    pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2 },
-    qs: { rb: -1, ba: 0, ma: 1, zo: 1, pr: 2, ab: 0 },
-    hm: { rb: 1, ba: 0, ma: 1, zo: -1, pr: -2, ab: 0 },
-    te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1 }
+    ir: { rb: -2, ba: 0, ma: 1, zo: 1, pr: 1, ab: -1, c3: -1, zb: 0 },
+    or: { rb: -2, ba: 0, ma: 0, zo: 1, pr: 1, ab: 1, c3: 0, zb: -1 },
+    dr: { rb: -1, ba: -1, ma: 1, zo: 1, pr: 2, ab: 2, c3: 0, zb: 1 },
+    sc: { rb: 1, ba: 0, ma: 0, zo: -1, pr: 1, ab: 2, c3: 0, zb: -2 },
+    sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1, c3: 1, zb: -1 },
+    ms: { rb: 0, ba: 0, ma: 2, zo: -1, pr: 1, ab: 0, c3: 0, zb: -1 },
+    dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0, c3: -1, zb: 1 },
+    pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2, c3: 0, zb: 0 },
+    qs: { rb: -1, ba: 0, ma: 1, zo: 1, pr: 2, ab: 0, c3: 0, zb: 0 },
+    hm: { rb: 1, ba: 0, ma: 1, zo: -1, pr: -2, ab: 0, c3: -1, zb: 0 },
+    te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1, c3: 0, zb: 0 }
   };
   // A kick-block unit plays a normal snap like an all-out blitz; a punt return unit is badly outnumbered
   Object.keys(M).forEach(k => { M[k].blk = M[k].ab; M[k].ret = (k === "dp" || k === "pa") ? 1 : 2; });
   const SACK = {
-    rb: { sc: .01, sp: .01, dp: .02, pa: .02, hm: .02 },
-    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08 },
-    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03 },
-    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08 },
-    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03 }
+    rb: { sc: .01, sp: .01, dp: .02, pa: .02, hm: .02, ms: .01 },
+    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08, ms: .03 },
+    zb: { sp: .015, dp: .05, pa: .05, te: .01, hm: .04, ms: .015 },
+    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03, ms: -.02 },
+    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, hm: .08, ms: .03 },
+    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, hm: -.03, ms: -.02 }
+  };
+  // Interception multipliers: the dropping lineman in a zone blitz sits right in the short throwing lanes
+  const INT_MUL = {
+    zb: { sc: 2.5, sp: 2, ms: 1.8, te: 1.5 }
   };
   /* ---------- Personnel ---------- */
   const OFF_PKG_IDS = ["p10", "p11", "p12", "p21", "p13", "jumbo"];
@@ -316,12 +329,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   };
   // How well each play suits the offensive package (added to the matchup edge)
   const PKG_FIT = {
-    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1, qs: -.5, hm: .5 },
+    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1, qs: -.5, hm: .5, dr: .5, ms: .5 },
     p11: {},
-    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5 },
-    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5 },
-    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5, qs: .5, hm: -1.5 },
-    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0, qs: 1, hm: -2 }
+    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5, ms: -.5 },
+    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5, qs: .5, hm: -.5, ms: -.5 },
+    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5, qs: .5, hm: -1.5, dr: -.5, ms: -1 },
+    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0, qs: 1, hm: -2, dr: -1, ms: -1.5 }
   };
   // Offensive package against defensive package: edge for runs and for passes
   const CLASH = {
@@ -836,7 +849,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       const sackP = Math.max(.005, P.sack + ((SACK[def] || {})[off] || 0) + (OP.sack || 0));
       if (rand() < sackP) { sack = true; y = -ri(3, 9); fumble = rand() < .08; time = ri(5, 8); }
       else {
-        const intP = clamp(P.int * INT_SCALE * (1 - .3 * m), .003, .1), compP = clamp((P.comp + .09 * m - (side ? .04 : 0)) * compMul, .04, .93), roll = rand();
+        const intP = clamp(P.int * INT_SCALE * (1 - .3 * m) * (((INT_MUL[def] || {})[off]) || 1), .003, .12), compP = clamp((P.comp + .09 * m - (side ? .04 : 0)) * compMul, .04, .93), roll = rand();
         if (roll < intP) { int = true; time = ri(6, 11); }
         else if (roll < intP + compP) {
           y = Math.max(P.min, Math.round(normal(P.mean + (P.deep ? 3 : 2) * m, P.sd)));
@@ -890,7 +903,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
     // Base narration
     if (sack) text = `Sacked for a loss of ${-y}.`;
-    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", hm: "The Hail Mary is batted down in a crowd in the end zone.", te: "The throw to the tackle falls incomplete." }[off];
+    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", ms: "The crosser is knocked away over the middle.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", hm: "The Hail Mary is batted down in a crowd in the end zone.", te: "The throw to the tackle falls incomplete." }[off];
     else if (P.kind === "run") {
       if (ns >= 100) text = `${P.name}, ${yd(y)}, into the end zone!`;
       else if (y < 0) text = `${P.name} is stuffed in the backfield for a loss of ${-y}.`;
@@ -982,13 +995,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const complete = thrown && !["Incomplete", "Picked off", "Pick six"].includes(r.head);
     const w = {};
     // Offside: the play runs anyway (a "free play"). Blitzing defenses jump more often.
-    w.os = .004 + (def === "rb" ? .006 : def === "ab" || def === "blk" ? .01 : 0);
+    w.os = .004 + (def === "rb" ? .006 : def === "ab" || def === "blk" ? .01 : def === "zb" ? .007 : 0);
     w.oh = P.kind === "run" ? (off === "or" ? .034 : .028) : (P.deep ? .035 : .016);
-    if (def === "rb" || def === "ab" || def === "blk") w.oh += .008;
+    if (def === "rb" || def === "ab" || def === "blk" || def === "zb") w.oh += .008;
     if (thrown) w.dh = .008 + (def === "ma" ? .012 : def === "zo" ? .004 : 0);
-    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03, hm: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
+    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03, hm: .03 }[off]) * ({ ma: 2, zo: 1, c3: 1, pr: .5, ab: 1.5, zb: 1.2, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
     if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005, hm: .02 }[off]) * (def === "ma" ? 1.5 : 1);
-    if (thrown) w.rtp = def === "ab" ? .012 : def === "rb" ? .004 : .0015;
+    if (thrown) w.rtp = def === "ab" ? .012 : def === "zb" ? .007 : def === "rb" ? .004 : .0015;
     w.fm = P.kind === "run" ? .004 : complete ? .002 : 0;
     if (S.offPkg === "jumbo" && thrown) w.idf = .015;
     return pickFrom(w);
@@ -1343,7 +1356,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return w;
   }
   function cpuOff() {
-    if (S.twoPt) return wpick(fitWeights({ ir: 4, or: 1.5, sc: 1, sp: 3.5, dp: .3, pa: 2 }));
+    if (S.twoPt) return wpick(fitWeights({ ir: 4, or: 1.5, sc: 1, sp: 3.5, ms: 2, dp: .3, pa: 2 }));
     if (kneelAvailable()) {
       const lead = S.teams[S.poss].score - S.teams[1 - S.poss].score;
       if (lead > 0 || (lead === 0 && S.spot < 50)) return "kneel";
@@ -1366,15 +1379,15 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         if (S.toGo > 4) return "punt";
       }
     }
-    const w = { ir: 3, or: 2, sc: 1.5, sp: 3, dp: 1.5, pa: 2 };
+    const w = { ir: 3, or: 2, dr: .3, sc: 1.5, sp: 3, ms: 2, dp: 1.5, pa: 2 };
     if (sneakOK()) w.qs = 5;
-    if (S.toGo >= 8) { w.ir = 1; w.or = 1; w.sc += 1; w.sp += 2; w.dp += 2; w.pa += 1; }
-    if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dp = .7; }
-    if (S.spot >= 88) { w.dp = .3; w.ir += 1; }
-    if (late && diff < 0) { w.ir = .5; w.or = .5; w.dp += 2; w.sp += 1; }
+    if (S.toGo >= 8) { w.ir = 1; w.or = 1; w.dr = .4; w.sc += 1; w.sp += 2; w.ms += 1; w.dp += 2; w.pa += 1; }
+    if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dr = .3; w.dp = .7; }
+    if (S.spot >= 88) { w.dp = .3; w.ir += 1; w.ms += 1; }
+    if (late && diff < 0) { w.ir = .5; w.or = .5; w.dr = .2; w.dp += 2; w.sp += 1; w.ms += 1; }
     fitWeights(w);
     // Lean on the run: tuned so the computer runs on about 40% of its play calls
-    w.ir *= RUN_BIAS; w.or *= RUN_BIAS;
+    w.ir *= RUN_BIAS; w.or *= RUN_BIAS; w.dr *= RUN_BIAS;
     return wpick(w);
   }
   // Computer offenses work the sideline when they need to stop the clock
@@ -1392,10 +1405,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (puntAvailable() && S.spot < 62) { if (x < .55) return "ret"; if (x < .67) return "blk"; }
       else if (fgAvailable() && x < .15) return "blk";
     }
-    const w = { rb: 2, ba: 3, ma: 2, zo: 2, pr: 1, ab: 1 };
-    if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; }
-    if (S.toGo <= 2) { w.rb = 4; w.ba = 3; w.pr = .3; }
-    if (S.spot >= 88) { w.pr = .2; w.ab = 2; }
+    const w = { rb: 2, ba: 3, ma: 2, zo: 2, c3: 2, pr: 1, ab: 1, zb: 1 };
+    if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; w.c3 = 2.5; w.zb = 1.5; }
+    if (S.toGo <= 2) { w.rb = 4; w.ba = 3; w.pr = .3; w.c3 = 1.5; w.zb = .5; }
+    if (S.spot >= 88) { w.pr = .2; w.ab = 2; w.zb = 1.5; }
     // Last snap of a half with the offense out of range: drop everyone deep for the Hail Mary
     if (hailOK() && S.clock <= 8 && !fgAvailable()) { w.pr += 6; w.zo += 1; }
     // Sit on the sideline when the offense needs to stop the clock
