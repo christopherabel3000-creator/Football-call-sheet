@@ -569,12 +569,15 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.offCall = null; S.defCall = null; S.sel = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
-    if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
-    else { S.offPkg = cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
+    // No huddle: both sides stay in the personnel that was on the field for the last snap
+    S.nhLock = S.noHuddle && S.last && S.last.team === S.poss && S.last.opk && S.last.dpk ? { off: S.last.opk, def: S.last.dpk } : null;
+    S.noHuddle = false;
+    if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = S.nhLock ? S.nhLock.off : pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
+    else { S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
   }
   function defStep() {
-    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
-    else { S.defPkg = cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
+    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = S.nhLock ? S.nhLock.def : pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
+    else { S.defPkg = S.nhLock ? S.nhLock.def : cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
   }
   /* ---------- Audibles ---------- */
   const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
@@ -660,6 +663,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
   }
   function cont() {
+    S.nhLock = null; // set again by startPlay when the next snap is a no-huddle snap
     if (S.tryChoice) {
       const c = S.tryChoice; S.patTeam = c.team;
       if (S.teams[c.team].cpu) { S.tryChoice = null; if (cpuTry(c) === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); }
@@ -675,16 +679,20 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     if (!S.periodOver && !S.gameOver) {
       cpuClock();
+      cpuNoHuddle();
       if (S.clockRunning) {
-        const res = runoff(S.spikeNext ? ri(8, 14) : S.oobRestart ? ri(15, 22) : (S.last && S.last.offId === "kneel") ? ri(38, 40) : ri(30, 38));
+        if (S.noHuddle && !nhAvailable()) S.noHuddle = false;
+        const res = runoff(S.spikeNext ? ri(8, 14) : S.noHuddle ? ri(15, 20) : S.oobRestart ? ri(15, 22) : (S.last && S.last.offId === "kneel") ? ri(38, 40) : ri(30, 38));
+        if (res !== "ok") S.noHuddle = false; // two-minute warning or end of the period: everyone can huddle and sub
         if (res === "tmw" && S.spikeNext) { S.spikeNext = false; S.banner = "Two-minute warning. The clock stopped on its own, so no spike needed."; }
       }
       S.oobRestart = false; S.toNote = "";
-      if (S.spikeNext && !S.periodOver) { doSpike(); return; }
+      if (S.spikeNext && !S.periodOver) { S.noHuddle = false; doSpike(); return; }
       S.spikeNext = false;
     }
     S.wasRunning = S.clockRunning;
     S.clockRunning = false;
+    if (S.periodOver) S.noHuddle = false;
     if (S.periodOver && !S.gameOver) endPeriod();
     if (S.gameOver) { S.phase = "final"; return; }
     if (S.toss) { tossNext(); return; }
@@ -704,7 +712,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function callTimeout(t) {
     if (!S.clockRunning || !S.tos || S.tos[t] <= 0) return false;
-    S.tos[t]--; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false;
+    S.tos[t]--; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false; S.noHuddle = false;
     S.toNote = `Timeout, ${name(t)}. ${S.tos[t]} left this ${S.quarter >= 5 ? "overtime" : "half"}.`;
     S.log.unshift({ q: S.quarter, clock: S.clock, team: t, sit: "Timeout", off: "Timeout", def: "", text: S.toNote, score: `${S.teams[0].score}-${S.teams[1].score}` });
     return true;
@@ -722,6 +730,20 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const o = S.poss, diff = S.teams[o].score - S.teams[1 - o].score;
     if (S.clockRunning && S.teams[o].cpu && S.down <= 3 && S.tos[o] === 0 &&
         ((S.quarter >= 4 && diff <= 0 && S.clock <= 60) || (S.quarter === 2 && S.clock <= 40 && S.spot >= 55))) S.spikeNext = true;
+  }
+  // No huddle is only possible after a scrimmage play by the same offense that left the clock running
+  // (not after a timeout, out of bounds, incompletion, flag, two-minute warning, change of possession or kick)
+  function nhAvailable() {
+    const r = S.last;
+    return S.phase === "result" && S.clockRunning && !S.oobRestart && !S.periodOver && !S.gameOver && !S.needPAT && !S.tryChoice &&
+      !S.retryTwo && !S.kickChoice && !S.twoPt && !!r && !r.pen && !r.accepted && !r.preSnap && !r.pat && r.team === S.poss &&
+      !!OFFP[r.offId] && !!r.opk && !!r.dpk && S.down <= 4;
+  }
+  function cpuNoHuddle() {
+    const o = S.poss;
+    if (!S.teams[o].cpu || S.spikeNext || !nhAvailable()) return;
+    const diff = S.teams[o].score - S.teams[1 - o].score;
+    if ((S.quarter >= 4 && diff < 0 && S.clock <= 300) || (S.quarter === 2 && S.clock <= 150 && S.clock > 0)) S.noHuddle = true;
   }
   function endPeriod() {
     S.periodOver = false; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false; S.toNote = "";
@@ -983,7 +1005,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const e = enforce(code, pre);
     applyState(e.s);
     S.teams[offender].st.pen++; S.teams[offender].st.penYds += e.yds;
-    return { preSnap: true, m: null, head: "Flag", tone: pen.on === "off" ? "bad" : "good", s: pen.on === "off" ? -1 : 1,
+    return { preSnap: true, pen: true, m: null, head: "Flag", tone: pen.on === "off" ? "bad" : "good", s: pen.on === "off" ? -1 : 1,
       read: { c: pen.on === "off" ? "d" : "o", t: pen.on === "off" ? "Pre-snap flag on the offense." : "Pre-snap flag on the defense." },
       text: `${pen.name}, ${pen.on === "off" ? "offense" : "defense"} (${abbr(offender)}). Whistled dead before the snap.`,
       sub: `${e.desc} ${downText()} at the ${spotText(S.poss, S.spot)}.`, fromX: fx(o, pre.spot), toX: fx(o, S.spot) };
@@ -1017,13 +1039,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.pen = null;
     const pen = PEN[P.code], who = `${pen.on === "off" ? "offense" : "defense"} (${abbr(P.offender)})`;
     let r = P.r;
+    r.pen = true;
     if (accept) {
       applyState(P.acc);
       S.teams[P.offender].st.pen++; S.teams[P.offender].st.penYds += P.accYds;
       let untimed = false;
       // A half can't end on an accepted defensive foul: one untimed down
       if (pen.on === "def" && P.periodOver && S.clock === 0) { S.periodOver = false; untimed = true; }
-      r = { offId: r.offId, defId: r.defId, opk: r.opk, dpk: r.dpk, team: r.team, aud: r.aud, audNote: r.audNote, m: null, accepted: true, oob: true, head: "Flag", tone: pen.on === "off" ? "bad" : "good",
+      r = { offId: r.offId, defId: r.defId, opk: r.opk, dpk: r.dpk, team: r.team, aud: r.aud, audNote: r.audNote, m: null, accepted: true, pen: true, oob: true, head: "Flag", tone: pen.on === "off" ? "bad" : "good",
         s: pen.on === "off" ? -2 : 2, fromX: r.fromX, toX: fx(S.poss, S.spot),
         read: { c: pen.on === "off" ? "d" : "o", t: pen.on === "off" ? "A flag on the offense wipes out the play." : P.endOfPlay ? "A flag on the defense adds 15 yards to the gain." : "A flag on the defense hands the offense free yards." },
         text: P.endOfPlay ? `${r.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, and the gain stands.` : `${r.text} Flag on the play: ${pen.name}, ${who}. Penalty accepted, so the play doesn't count.`,
@@ -1106,7 +1129,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const yds = Math.min(15, Math.floor((100 - from) / 2));
     S.spot = Math.min(99, from + yds); S.down = 1; S.toGo = Math.min(10, 100 - S.spot);
     st.pen++; st.penYds += yds;
-    return Object.assign(r, { head: "Flag", tone: "good", s: 2, toX: fx(o, S.spot), accepted: true,
+    return Object.assign(r, { head: "Flag", tone: "good", s: 2, toX: fx(o, S.spot), accepted: true, pen: true,
       read: { c: "o", t: "Selling out for the block cost the defense." },
       text: `${kind === "punt" ? "The punter" : "The kicker"} gets run into. Roughing the kicker, defense (${abbr(d)}).`,
       sub: `${yds}-yard penalty. Automatic first down. ${downText()} at the ${spotText(o, S.spot)}.` });
@@ -1512,6 +1535,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       <div class="pkgs ${isOff ? "" : "two"}">${pkgIds.map(id => `<button class="pkg" data-a="pkg" data-v="${id}" aria-pressed="${pk === id}">
         <span class="pn">${pkgBook[id].name}</span><span class="pw">${pkgBook[id].who}</span></button>`).join("")}</div>
       <p class="muted pkdesc">${esc(pkgBook[pk].desc)}</p>`;
+    const lockedPkg = S.nhLock ? `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>
+      <p class="banner">No huddle. Personnel is locked: ${isOff ? "you stay" : "you're stuck"} in <b>${pkgBook[pk].name}</b> (${pkgBook[pk].who}).</p>` : "";
     const theirPkg = !isOff && S.offPkg ? `<p class="banner">${esc(name(S.poss))} are in <b>${OFF_PKGS[S.offPkg].name}</b> (${OFF_PKGS[S.offPkg].who}). Their play is hidden.</p>` : "";
     const card = (id, nm, tag, ds, extra) => `<button class="play ${extra || ""}" data-a="pick" data-v="${id}" aria-pressed="${S.sel === id}">
         <span class="tag">${tag}</span><span class="nm">${nm}</span><span class="ds">${ds}</span></button>`;
@@ -1522,7 +1547,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     if (isOff && (puntAvailable() || fgAvailable())) {
       st += `<p class="sechead">Special teams</p><div class="plays">`;
-      if (puntAvailable()) st += card("punt", "Punt", "Kick", "Flip the field. Averages about 43 yards.", "st");
+      if (puntAvailable()) st += card("punt", "Punt", "Kick", "Flip the field. Averages about 46 yards.", "st");
       if (fgAvailable()) { const k = kickDist(); st += card("fg", `${k}-yd field goal`, "Kick", `About ${Math.round(fgProb(k) * 100)}% from here.`, "st"); }
       st += `</div><p class="sechead">Trick plays</p><div class="plays">`;
       if (puntAvailable()) st += card("fp", "Fake Punt", "Trick", "Line up to punt, then run or throw for the first down. Deadly if they sell out for the kick.", "st");
@@ -1546,7 +1571,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         </div>
         ${liveField()}
         ${theirPkg}
-        ${pkgPicker}
+        ${S.nhLock ? lockedPkg : pkgPicker}
         <p class="sechead">${isOff ? "Plays" : "Calls"}</p>
         <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>
         ${st}
@@ -1558,11 +1583,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.needPAT || S.tryChoice || S.retryTwo || S.kickChoice || S.periodOver || S.gameOver || !S.tos) return "";
     const o = S.poss, t = S.teams;
     let stat;
-    if (S.clockRunning) stat = `Clock running. About ${S.spikeNext ? "10" : S.oobRestart ? "20" : "35"} seconds come off before the next snap${S.oobRestart ? " (out of bounds, clock restarts when the ball is set)" : ""}.`;
+    if (S.clockRunning) stat = `Clock running. About ${S.spikeNext ? "10" : S.noHuddle ? "15 to 20" : S.oobRestart ? "20" : "35"} seconds come off before the next snap${S.oobRestart ? " (out of bounds, clock restarts when the ball is set)" : ""}.${S.noHuddle ? ` ${name(o)} are going no huddle: nobody can change personnel.` : ""}`;
     else stat = S.toNote ? S.toNote + " Clock stopped." : "Clock stopped until the next snap.";
     let btns = "";
     if (S.clockRunning) {
       [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0 && (!NET.live || i === NET.me)) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
+      if (!t[o].cpu && nhAvailable() && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="nohuddle" aria-pressed="${!!S.noHuddle}">${S.noHuddle ? "Going no huddle" : `${esc(t[o].abbr)}: no huddle`}</button>`;
       if (!t[o].cpu && S.down <= 3 && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
     }
     return `<div class="clockbox"><p class="cstat">${esc(stat)}</p>${btns ? `<div class="clockbtns">${btns}</div>` : ""}</div>`;
@@ -2058,7 +2084,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const NET = { live: false, me: -1, code: null, ref: null, db: null, ver: 0, wid: null, remote: null, err: null, busy: false, copied: false, status: "" };
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty", "toss"]);
-  const NET_COMMIT = new Set(["lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "kickoff", "rematch", "end"]);
+  const NET_COMMIT = new Set(["lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "nohuddle", "kickoff", "rematch", "end"]);
   const DEVICE = (() => {
     let id = null;
     try { id = localStorage.getItem("csf-device"); } catch (e) {}
@@ -2113,6 +2139,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "pen": return S.phase === "penalty" && actor() === me;
       case "to": return S.phase === "result" && +ds.t === me;
       case "spike": return S.phase === "result" && S.poss === me;
+      case "nohuddle": return S.phase === "result" && S.poss === me;
       case "kickoff": return S.phase === "lobby" && me === 0 && !!S.online.seats[1] && !!S.draft.t[1];
       case "rematch": return S.phase === "final";
       case "end": return !!S.teams;
@@ -2377,7 +2404,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "audible": if (S.phase === "los") { audible(S.audSel); window.scrollTo(0, 0); } break;
       case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
       case "pick": S.sel = ds.v; break;
-      case "pkg": S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
+      case "pkg": if (S.nhLock) break; S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
       case "lock": lock(); window.scrollTo(0, 0); break;
       case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
       case "pat": doPAT(ds.v); break;
@@ -2386,7 +2413,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
       case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
       case "to": callTimeout(+ds.t); break;
-      case "spike": if (S.clockRunning && S.down <= 3) S.spikeNext = !S.spikeNext; break;
+      case "spike": if (S.clockRunning && S.down <= 3) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; } break;
+      case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) S.spikeNext = false; } break;
       case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); if (online) S.online = online; window.scrollTo(0, 0); break; }
       case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
       case "end":
