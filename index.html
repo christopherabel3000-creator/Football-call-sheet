@@ -339,7 +339,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const yd = n => `${n} yard${Math.abs(n) === 1 ? "" : "s"}`;
   const ord = n => ["", "1st", "2nd", "3rd", "4th"][n] || n + "th";
   const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-  const qLabel = q => q === 5 ? "OT" : "Q" + q;
+  const qLabel = q => q === 5 ? "OT" : q > 5 ? `${q - 4}OT` : "Q" + q;
 
   let S = null;
   const name = t => S.teams[t].name;
@@ -391,7 +391,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.banner = `Coin toss: ${name(recv)} receive. ${kickoff(recv, false)}`;
     startPlay();
   }
-  function startDrive(team, spot) { S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
+  function startDrive(team, spot) { if (team !== S.poss) otTurn(team); S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
   // Kickoff: touchbacks to the 35, most kicks returned
   function kickoff(rcv, allowTD) {
     const roll = rand();
@@ -424,6 +424,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   // After a score: kick off right away, or let a trailing human coordinator choose
   function kickAfterScore(k) {
+    // In overtime the scoring team's possession is over before the kick; that can decide the game
+    if (!S.gameOver) otTurn(1 - k);
+    if (S.gameOver) return "";
     if (onsideOK(k)) {
       if (!S.teams[k].cpu) { S.kickChoice = { team: k }; return `${name(k)} kick off next. Trailing late, they can kick deep or try an onside kick.`; }
       if (cpuWantsOnside(k)) return onsideKick(k).text;
@@ -480,7 +483,50 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.tmwHit) { S.tmwHit = false; stopped = true; r.tmw = true; S.tmwJust = true; }
     S.clockRunning = !stopped && !S.periodOver;
   }
-  function score(team, pts) { S.teams[team].score += pts; if (S.quarter === 5) S.gameOver = true; }
+  // ---- Overtime ----
+  // S.ot = { a: team that received the OT kickoff, ph: phase }
+  //   ph 1: team a has its guaranteed possession
+  //   ph 2: the other team has its guaranteed possession
+  //   ph 3: both teams have had the ball, sudden death
+  // A score by the team without the ball (safety, pick-six, return TD) ends it at any time.
+  // A tie at the end of an OT period starts a new OT period with a new coin toss.
+  function otState() {
+    if (!S.ot && S.quarter >= 5) S.ot = { a: S.poss, ph: 3 }; // a game saved by an older version mid-OT stays sudden death
+    return S.ot;
+  }
+  function score(team, pts) {
+    S.teams[team].score += pts;
+    const o = otState(); if (!o || S.gameOver) return;
+    const ahead = S.teams[team].score > S.teams[1 - team].score;
+    if (o.ph === 3 || (o.ph === 1 && team !== o.a) || (o.ph === 2 && (team === o.a || ahead))) S.gameOver = true;
+  }
+  // The ball is going to team np: closes out a guaranteed possession
+  function otTurn(np) {
+    const o = otState(); if (!o || S.gameOver) return;
+    if (o.ph === 1 && np !== o.a) o.ph = 2;
+    else if (o.ph === 2 && np === o.a) {
+      if (S.teams[0].score !== S.teams[1].score) S.gameOver = true;
+      else o.ph = 3;
+    }
+  }
+  function otNote() {
+    const o = S.ot, b = 1 - o.a, down = S.teams[o.a].score - S.teams[b].score;
+    if (o.ph === 2) return down > 0 ? `${name(b)} get their overtime possession, down ${down}.` : `${name(b)} get their overtime possession. Any score wins it.`;
+    return "Both teams have had the ball. Sudden death: the next score wins.";
+  }
+  // Overtime wrap-up for a play's result: the winner, or a note when the OT phase changed
+  function otTail(r) {
+    if (!S.ot || S.quarter < 5) return;
+    if (S.gameOver) { r.sub = `${name(S.teams[0].score > S.teams[1].score ? 0 : 1)} win it in overtime!`; return; }
+    const was = S.snap && S.snap.ot;
+    if (was && was.ph !== S.ot.ph) r.sub = (r.sub ? r.sub + " " : "") + otNote();
+  }
+  function startOT(lead) {
+    S.quarter++; S.clock = S.cfg.qLen; S.tos = [2, 2];
+    const r = rand() < .5 ? 0 : 1;
+    S.ot = { a: r, ph: 1 };
+    S.banner = `${lead} Both teams get the ball unless the defense scores, then it's sudden death. ${name(r)} win the toss and receive. ${kickoff(r, false)}`;
+  }
 
   // Kneel-down: offense tied or leading, opponent out of timeouts, 4th-quarter two-minute warning already passed.
   // The option opens on a 1st down and stays open for the rest of that series.
@@ -492,7 +538,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function startPlay() {
     if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
     S.offCall = null; S.defCall = null; S.sel = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
-    S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock };
+    S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
     if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
     else { S.offPkg = cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
@@ -577,6 +623,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       const scored = S.teams[0].score + S.teams[1].score !== S.snap.total;
       finishClock(r, !r.accepted && (r.head === "Incomplete" || S.poss !== S.snap.poss || scored || S.needPAT || S.offCall === "punt" || S.offCall === "fg"));
     }
+    otTail(r);
     r.id = S.playId = (S.playId || 0) + 1;
     S.last = r; S.phase = "result"; S.banner = "";
     S.log.unshift({ q: S.snap.q, clock: S.snap.clock, team: S.snap.poss, sit: S.snap.sit,
@@ -609,7 +656,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     S.wasRunning = S.clockRunning;
     S.clockRunning = false;
-    if (S.periodOver) endPeriod();
+    if (S.periodOver && !S.gameOver) endPeriod();
     if (S.gameOver) { S.phase = "final"; return; }
     startPlay();
   }
@@ -651,11 +698,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const q = S.quarter;
     if (q === 1 || q === 3) { S.quarter++; S.clock = S.cfg.qLen; S.banner = `End of the ${q === 1 ? "1st" : "3rd"} quarter.`; }
     else if (q === 2) { S.quarter = 3; S.clock = S.cfg.qLen; S.tos = [3, 3]; const r = 1 - S.firstRecv; S.banner = `Halftime. ${name(r)} receive the second-half kickoff. ${kickoff(r, false)}`; }
-    else if (q === 4) {
-      if (S.teams[0].score === S.teams[1].score) {
-        S.quarter = 5; S.clock = S.cfg.qLen; S.tos = [2, 2]; const r = rand() < .5 ? 0 : 1;
-        S.banner = `Tied after regulation. Sudden-death overtime: first score wins. ${name(r)} win the toss and receive. ${kickoff(r, false)}`;
-      } else S.gameOver = true;
+    else if (S.teams[0].score === S.teams[1].score) startOT(q === 4 ? "Tied after regulation. On to overtime." : "Still tied after overtime. On to another overtime period.");
+    else if (q >= 5 && otState().ph === 2) {
+      // The second team's guaranteed possession carries over into another OT period
+      S.quarter++; S.clock = S.cfg.qLen; S.tos = [2, 2];
+      S.banner = `End of the overtime period. ${name(1 - S.ot.a)} still get to finish their possession, so play goes on.`;
     } else S.gameOver = true;
   }
 
@@ -870,10 +917,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function snapState() {
     return JSON.parse(JSON.stringify({ poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, needPAT: S.needPAT, patTeam: S.patTeam,
-      gameOver: S.gameOver, scores: [S.teams[0].score, S.teams[1].score], st: [S.teams[0].st, S.teams[1].st] }));
+      gameOver: S.gameOver, ot: S.ot || null, scores: [S.teams[0].score, S.teams[1].score], st: [S.teams[0].st, S.teams[1].st] }));
   }
   function applyState(x) {
     S.poss = x.poss; S.spot = x.spot; S.down = x.down; S.toGo = x.toGo; S.needPAT = x.needPAT; S.patTeam = x.patTeam; S.gameOver = x.gameOver;
+    if (x.ot !== undefined) S.ot = x.ot ? { a: x.ot.a, ph: x.ot.ph } : null;
     [0, 1].forEach(i => { S.teams[i].score = x.scores[i]; S.teams[i].st = JSON.parse(JSON.stringify(x.st[i])); });
   }
   const downTextOf = x => `${ord(x.down)} & ${x.spot + x.toGo >= 100 ? "Goal" : x.toGo}`;
@@ -1087,6 +1135,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function twoResult(r) {
     if (!r.opk) { r.opk = S.offPkg; r.dpk = S.defPkg; }
+    otTail(r);
     if (S.aud && r.offId) { r.aud = S.aud; if (!r.audNote) r.audNote = audNote(); }
     r.id = S.playId = (S.playId || 0) + 1;
     S.clockRunning = false; S.oobRestart = false;
@@ -1180,6 +1229,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       head: ok ? "Extra point good" : "Extra point missed", tone: ok ? "good" : "bad",
       text: dist ? (ok ? `The ${d}-yard extra point is good.` : `The ${d}-yard extra point is no good.`) : (ok ? "The extra point is through." : "The extra point clanks off the upright."),
       sub: ko, pat: true };
+    otTail(r);
     r.id = S.playId = (S.playId || 0) + 1;
     finishClock(r, true);
     S.last = r; S.phase = "result";
@@ -1521,7 +1571,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         ${r.tmw ? `<p class="banner">Two-minute warning. The clock is stopped.</p>` : ""}
         ${clockBox()}
         ${field({ ball: r.toX, los: r.fromX, from: r.fromX })}
-        ${S.periodOver && !S.needPAT && !S.tryChoice && !S.retryTwo ? `<p class="banner">That's the end of ${S.quarter === 5 ? "overtime" : "the " + ord(S.quarter) + " quarter"}.</p>` : ""}
+        ${S.periodOver && !S.needPAT && !S.tryChoice && !S.retryTwo ? `<p class="banner">That's the end of ${S.quarter >= 5 ? "the overtime period" : "the " + ord(S.quarter) + " quarter"}.</p>` : ""}
         ${netResultButton(label)}
       </section>`;
   }
@@ -1615,7 +1665,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const [a, b] = S.teams, tie = a.score === b.score, w = a.score > b.score ? 0 : 1;
     return `${board()}
       <section class="panel final handoff" style="--team:${tie ? "var(--ink)" : S.teams[w].color}">
-        <p class="eyebrow">Final${S.quarter === 5 ? " · Overtime" : ""}</p>
+        <p class="eyebrow">Final${S.quarter === 5 ? " · Overtime" : S.quarter > 5 ? ` · ${S.quarter - 4} overtimes` : ""}</p>
         <h2>${tie ? "It ends in a tie" : `<span>${esc(S.teams[w].name)}</span> win ${S.teams[w].score}-${S.teams[1 - w].score}`}</h2>
         <div class="choices">
           ${NET.live && NET.me < 0 ? "" : `<button class="btn" data-a="rematch">Rematch</button>`}
