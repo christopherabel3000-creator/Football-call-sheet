@@ -242,6 +242,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { name: "Quick Game", kind: "pass", tag: "Pass", desc: "Slants and outs. Moves the chains.", comp: .66, mean: 7, sd: 3, min: 1, int: .022, sack: .04, air: 6 },
     dp: { name: "Deep Shot", kind: "pass", tag: "Pass", desc: "Go routes and posts. Big gain or nothing.", comp: .38, mean: 27, sd: 9, min: 13, int: .045, sack: .07, air: 22, deep: 1 },
     pa: { name: "Play-Action", kind: "pass", tag: "Pass", desc: "Sell the run, then throw over the top.", comp: .54, mean: 16, sd: 7, min: 6, int: .03, sack: .06, air: 14, deep: 1 },
+    so: { name: "Sideline Route", kind: "pass", tag: "Clock", desc: "Out route to the boundary. Short gain, but the receiver usually gets out of bounds to stop the clock.", comp: .6, mean: 6, sd: 2.5, min: 2, int: .025, sack: .045, air: 7, oob: .85, noBig: true },
     te: { name: "Tackle Eligible", kind: "pass", tag: "Trick", desc: "Jumbo only. Throw to the tackle who reported eligible. Short, but a shock.", comp: .74, mean: 4, sd: 2.5, min: 1, int: .02, sack: .03, air: 3, noBig: true }
   };
   const DEFP = {
@@ -276,16 +277,17 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1 },
     dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0 },
     pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2 },
+    so: { rb: 0, ba: 0, ma: -1, zo: -2, pr: 1, ab: 1 },
     te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1 }
   };
   // A kick-block unit plays a normal snap like an all-out blitz; a punt return unit is badly outnumbered
   Object.keys(M).forEach(k => { M[k].blk = M[k].ab; M[k].ret = (k === "dp" || k === "pa") ? 1 : 2; });
   const SACK = {
-    rb: { sc: .01, sp: .01, dp: .02, pa: .02 },
-    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
-    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 },
-    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
-    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 }
+    rb: { sc: .01, sp: .01, dp: .02, pa: .02, so: .01 },
+    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, so: .03 },
+    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, so: -.02 },
+    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, so: .03 },
+    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, so: -.02 }
   };
   /* ---------- Personnel ---------- */
   const OFF_PKG_IDS = ["p10", "p11", "p12", "p21", "p13", "jumbo"];
@@ -306,12 +308,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   };
   // How well each play suits the offensive package (added to the matchup edge)
   const PKG_FIT = {
-    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1 },
+    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1, so: .5 },
     p11: {},
-    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5 },
-    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5 },
-    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5 },
-    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0 }
+    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5, so: -.5 },
+    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5, so: -.5 },
+    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5, so: -1 },
+    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0, so: -1.5 }
   };
   // Offensive package against defensive package: edge for runs and for passes
   const CLASH = {
@@ -582,7 +584,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   /* ---------- Audibles ---------- */
   const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
   // Plays the offense can check to from its current personnel
-  const audIds = () => OFF_IDS.concat(S.offPkg === "jumbo" ? ["te"] : []).filter(id => id !== S.offCall);
+  // The sideline route is on the call sheet only when getting out of bounds stops the clock
+  const sidelineOK = () => !S.twoPt && oobWindow() && S.clock > 0;
+  const offIds = pk => OFF_IDS.concat(sidelineOK() ? ["so"] : [], pk === "jumbo" ? ["te"] : []);
+  const audIds = () => offIds(S.offPkg).filter(id => id !== S.offCall);
   function makeLook() {
     const d = S.defCall, fake = rand() < (DISGUISE[d] ?? .25);
     const shown = fake ? DEF_IDS.filter(x => x !== d)[ri(0, DEF_IDS.length - 2)] : d;
@@ -812,7 +817,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         else if (roll < intP + compP) {
           y = Math.max(P.min, Math.round(normal(P.mean + (P.deep ? 3 : 2) * m, P.sd)));
           if (m >= 1 && rand() < .07 * m) y += P.noBig ? ri(1, 4) : ri(10, 35);
-          fumble = rand() < .008; oob = rand() < .2;
+          fumble = rand() < .008; oob = rand() < (P.oob || .2);
           time = ri(5, 9);
         } else { inc = true; time = ri(4, 7); }
       }
@@ -860,7 +865,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
     // Base narration
     if (sack) text = `Sacked for a loss of ${-y}.`;
-    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", te: "The throw to the tackle falls incomplete." }[off];
+    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", so: "The out route is jumped and knocked away at the sideline.", te: "The throw to the tackle falls incomplete." }[off];
     else if (P.kind === "run") {
       if (ns >= 100) text = `${P.name}, ${yd(y)}, into the end zone!`;
       else if (y < 0) text = `${P.name} is stuffed in the backfield for a loss of ${-y}.`;
@@ -956,8 +961,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     w.oh = P.kind === "run" ? (off === "or" ? .034 : .028) : (P.deep ? .035 : .016);
     if (def === "rb" || def === "ab" || def === "blk") w.oh += .008;
     if (thrown) w.dh = .008 + (def === "ma" ? .012 : def === "zo" ? .004 : 0);
-    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
-    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005 }[off]) * (def === "ma" ? 1.5 : 1);
+    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03, so: .01 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
+    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005, so: .004 }[off]) * (def === "ma" ? 1.5 : 1);
     if (thrown) w.rtp = def === "ab" ? .012 : def === "rb" ? .004 : .0015;
     w.fm = P.kind === "run" ? .004 : complete ? .002 : 0;
     if (S.offPkg === "jumbo" && thrown) w.idf = .015;
@@ -1339,6 +1344,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dp = .7; }
     if (S.spot >= 88) { w.dp = .3; w.ir += 1; }
     if (late && diff < 0) { w.ir = .5; w.or = .5; w.dp += 2; w.sp += 1; }
+    // Sideline routes when the clock matters: heavily when trailing late, sometimes before the half
+    if (sidelineOK()) w.so = (late && diff <= 0) || (S.quarter >= 5 && diff <= 0) ? 3.5 : S.quarter === 2 ? 1.5 : .5;
     fitWeights(w);
     // Lean on the run: tuned so the computer runs on about 40% of its play calls
     w.ir *= RUN_BIAS; w.or *= RUN_BIAS;
@@ -1355,6 +1362,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; }
     if (S.toGo <= 2) { w.rb = 4; w.ba = 3; w.pr = .3; }
     if (S.spot >= 88) { w.pr = .2; w.ab = 2; }
+    // Sit on the sideline when the offense needs to stop the clock
+    if (sidelineOK() && S.teams[S.poss].score <= S.teams[1 - S.poss].score && (S.quarter >= 4 || S.quarter === 2)) w.zo += 1.5;
     return wpick(w);
   }
   function cpuPAT() {
@@ -1528,7 +1537,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function vCall() {
     const isOff = S.side === "off", t = isOff ? S.poss : 1 - S.poss, tm = S.teams[t];
     const pk = S.pkgSel || (isOff ? "p11" : "nickel");
-    const ids = isOff ? OFF_IDS.concat(pk === "jumbo" ? ["te"] : []) : DEF_IDS, book = isOff ? OFFP : DEFP;
+    const ids = isOff ? offIds(pk) : DEF_IDS, book = isOff ? OFFP : DEFP;
     const fitTag = id => isOff ? fitTagFor(pk, id) : "";
     const pkgIds = isOff ? OFF_PKG_IDS : DEF_PKG_IDS, pkgBook = isOff ? OFF_PKGS : DEF_PKGS;
     const pkgPicker = `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>
