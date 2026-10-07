@@ -242,7 +242,6 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { name: "Quick Game", kind: "pass", tag: "Pass", desc: "Slants and outs. Moves the chains.", comp: .66, mean: 7, sd: 3, min: 1, int: .022, sack: .04, air: 6 },
     dp: { name: "Deep Shot", kind: "pass", tag: "Pass", desc: "Go routes and posts. Big gain or nothing.", comp: .38, mean: 27, sd: 9, min: 13, int: .045, sack: .07, air: 22, deep: 1 },
     pa: { name: "Play-Action", kind: "pass", tag: "Pass", desc: "Sell the run, then throw over the top.", comp: .54, mean: 16, sd: 7, min: 6, int: .03, sack: .06, air: 14, deep: 1 },
-    so: { name: "Sideline Route", kind: "pass", tag: "Clock", desc: "Out route to the boundary. Short gain, but the receiver usually gets out of bounds to stop the clock.", comp: .6, mean: 6, sd: 2.5, min: 2, int: .025, sack: .045, air: 7, oob: .85, noBig: true },
     te: { name: "Tackle Eligible", kind: "pass", tag: "Trick", desc: "Jumbo only. Throw to the tackle who reported eligible. Short, but a shock.", comp: .74, mean: 4, sd: 2.5, min: 1, int: .02, sack: .03, air: 3, noBig: true }
   };
   const DEFP = {
@@ -256,6 +255,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     ret: { name: "Punt Return", tag: "Special teams", desc: "Set up a return. Better field position, but soft if they fake or go for it." }
   };
   const FAKE_IDS = ["fp", "ffg"];
+  // Plays that can be run to the sideline late in a half: the ball carrier aims to get out of bounds.
+  // Fewer yards on every play. Cover 2 corners squat on the short throws to the boundary, and man
+  // coverage tightens up on all sideline throws; the deep sideline throw is a Cover 2 "hole shot".
+  const SIDE_IDS = ["or", "sc", "sp", "dp", "pa"];
+  const SIDE_EDGE = { sc: { zo: -1, ma: -.5 }, sp: { zo: -1, ma: -.5 }, dp: { ma: -.5 }, pa: { ma: -.5 }, or: {} };
+  const sideOn = id => SIDE_IDS.includes(id);
   // What the offense sees at the line for each defensive call. Defenses sometimes disguise it.
   const LOOKS = {
     rb: { name: "Eight in the box", hint: "A safety creeps down. Often a run blitz." },
@@ -277,17 +282,16 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     sp: { rb: 0, ba: 0, ma: -1, zo: 0, pr: 1, ab: 1 },
     dp: { rb: 1, ba: 0, ma: 1, zo: -2, pr: -2, ab: 0 },
     pa: { rb: 2, ba: 0, ma: -1, zo: 0, pr: -2, ab: -2 },
-    so: { rb: 0, ba: 0, ma: -1, zo: -2, pr: 1, ab: 1 },
     te: { rb: 2, ba: 1, ma: -1, zo: 0, pr: 0, ab: 1 }
   };
   // A kick-block unit plays a normal snap like an all-out blitz; a punt return unit is badly outnumbered
   Object.keys(M).forEach(k => { M[k].blk = M[k].ab; M[k].ret = (k === "dp" || k === "pa") ? 1 : 2; });
   const SACK = {
-    rb: { sc: .01, sp: .01, dp: .02, pa: .02, so: .01 },
-    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, so: .03 },
-    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, so: -.02 },
-    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01, so: .03 },
-    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03, so: -.02 }
+    rb: { sc: .01, sp: .01, dp: .02, pa: .02 },
+    ab: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
+    pr: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 },
+    blk: { sc: .01, sp: .03, dp: .10, pa: .10, te: .01 },
+    ret: { sc: -.01, sp: -.02, dp: -.03, pa: -.03 }
   };
   /* ---------- Personnel ---------- */
   const OFF_PKG_IDS = ["p10", "p11", "p12", "p21", "p13", "jumbo"];
@@ -308,12 +312,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   };
   // How well each play suits the offensive package (added to the matchup edge)
   const PKG_FIT = {
-    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1, so: .5 },
+    p10: { ir: -1, or: -.5, sc: .5, sp: .5, dp: .5, pa: -1 },
     p11: {},
-    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5, so: -.5 },
-    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5, so: -.5 },
-    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5, so: -1 },
-    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0, so: -1.5 }
+    p12: { ir: .5, or: .5, sp: -.5, dp: -.5, pa: .5 },
+    p21: { ir: .5, sc: -.5, sp: -.5, dp: -.5, pa: .5 },
+    p13: { ir: .5, or: 0, sc: -.5, sp: -1, dp: -1.5, pa: .5 },
+    jumbo: { ir: 1, or: -.5, sc: -1.5, sp: -1.5, dp: -2, pa: 0, te: 0 }
   };
   // Offensive package against defensive package: edge for runs and for passes
   const CLASH = {
@@ -568,14 +572,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const kneelAvailable = () => !!S.kneelSeries && kneelBase();
   function startPlay() {
     if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
-    S.offCall = null; S.defCall = null; S.sel = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
+    S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
     // No huddle: both sides stay in the personnel that was on the field for the last snap
     S.nhLock = S.noHuddle && S.last && S.last.team === S.poss && S.last.opk && S.last.dpk ? { off: S.last.opk, def: S.last.dpk } : null;
     S.noHuddle = false;
     if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = S.nhLock ? S.nhLock.off : pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
-    else { S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); defStep(); }
+    else { S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); S.offSide = cpuSide(S.offCall); defStep(); }
   }
   function defStep() {
     if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = S.nhLock ? S.nhLock.def : pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
@@ -584,9 +588,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   /* ---------- Audibles ---------- */
   const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
   // Plays the offense can check to from its current personnel
-  // The sideline route is on the call sheet only when getting out of bounds stops the clock
+  // The sideline option is offered only when getting out of bounds stops the clock
   const sidelineOK = () => !S.twoPt && oobWindow() && S.clock > 0;
-  const offIds = pk => OFF_IDS.concat(sidelineOK() ? ["so"] : [], pk === "jumbo" ? ["te"] : []);
+  const offIds = pk => OFF_IDS.concat(pk === "jumbo" ? ["te"] : []);
   const audIds = () => offIds(S.offPkg).filter(id => id !== S.offCall);
   function makeLook() {
     const d = S.defCall, fake = rand() < (DISGUISE[d] ?? .25);
@@ -603,7 +607,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.side = "aud"; S.phase = passPhone() ? "handoff" : "los";
   }
   function audible(to) {
-    if (to && to !== S.offCall && OFFP[to]) { S.aud = { from: S.offCall, to }; S.offCall = to; }
+    if (to && to !== S.offCall && OFFP[to]) { S.aud = { from: S.offCall, to }; S.offCall = to; S.offSide = S.offSide && sideOn(to); }
     resolve();
   }
   // The computer checks out of a play only when the look says it is walking into a bad matchup
@@ -612,7 +616,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (cur > -1) return;
     let best = null, be = -9;
     audIds().forEach(id => { const e = edgeVs(id, ld) + (S.toGo >= 8 && OFFP[id].kind === "run" ? -1 : 0) + (S.toGo <= 2 && id === "dp" ? -1 : 0); if (e > be) { be = e; best = id; } });
-    if (best && be - cur >= 2 && rand() < .65) S.aud = { from: S.offCall, to: best }, S.offCall = best;
+    if (best && be - cur >= 2 && rand() < .65) { S.aud = { from: S.offCall, to: best }; S.offCall = best; S.offSide = S.offSide && sideOn(best); }
   }
   // Each coordinator's last package is remembered as the default for their next call
   function pkgMem(t) { S.pkgMem = S.pkgMem || {}; return (S.pkgMem[t] = S.pkgMem[t] || { off: "p11", def: "nickel" }); }
@@ -620,7 +624,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!S.sel) return;
     if (S.side === "off") { S.offPkg = S.pkgSel || "p11"; pkgMem(S.poss).off = S.offPkg; }
     else { S.defPkg = S.pkgSel || "nickel"; pkgMem(1 - S.poss).def = S.defPkg; }
-    if (S.side === "off") { S.offCall = S.sel; S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
+    if (S.side === "off") { S.offCall = S.sel; S.offSide = !!S.selSide && sideOn(S.sel) && sidelineOK(); S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
     else { S.defCall = S.sel; afterDef(); }
   }
   function resolve() {
@@ -664,7 +668,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     r.id = S.playId = (S.playId || 0) + 1;
     S.last = r; S.phase = "result"; S.banner = "";
     S.log.unshift({ q: S.snap.q, clock: S.snap.clock, team: S.snap.poss, sit: S.snap.sit,
-      off: S.offCall === "punt" ? "Punt" : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
+      off: S.offCall === "punt" ? "Punt" : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.offSide && sideOn(S.offCall) ? " (sideline)" : ""}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
       def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
   }
   function cont() {
@@ -793,9 +797,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
   const INT_SCALE = .8; // interceptions trimmed 20% after the full-game simulation check
   // The dice for one snap: yards, and whether it was a sack, interception, incompletion or fumble
-  function rollPlay(off, def, opk, dpk) {
-    opk = opk || "p11"; dpk = dpk || "nickel";
-    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), m = clamp(M[off][def] + pe, -3, 3);
+  function rollPlay(off, def, opk, dpk, side) {
+    opk = opk || "p11"; dpk = dpk || "nickel"; side = !!side && sideOn(off);
+    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), m = clamp(M[off][def] + pe + (side ? SIDE_EDGE[off][def] || 0 : 0), -3, 3);
     const OP = OFF_PKGS[opk] || {}, compMul = (OP.comp || {})[off] || 1;
     let y = 0, time = 0, fumble = false, int = false, sack = false, inc = false, oob = false;
     if (P.kind === "run") {
@@ -803,21 +807,23 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (rand() < tfl) y = -ri(1, 4);
       else {
         y = Math.max(-2, Math.round(normal(P.mean + 1.8 * m, P.sd)));
-        if (rand() < Math.max(.005, P.big + .025 * m)) y += ri(12, 45);
+        if (rand() < Math.max(.005, P.big + .025 * m) * (side ? .5 : 1)) y += ri(12, 45);
+        if (side && y > 2) y = Math.max(2, Math.round(y * .8));
       }
       fumble = rand() < P.fum * (m <= -2 ? 2 : 1);
-      oob = rand() < P.oob;
+      oob = rand() < (side ? (y > 0 ? .75 : .3) : P.oob);
       time = ri(4, 7);
     } else {
       const sackP = Math.max(.005, P.sack + ((SACK[def] || {})[off] || 0) + (OP.sack || 0));
       if (rand() < sackP) { sack = true; y = -ri(3, 9); fumble = rand() < .08; time = ri(5, 8); }
       else {
-        const intP = clamp(P.int * INT_SCALE * (1 - .3 * m), .003, .1), compP = clamp((P.comp + .09 * m) * compMul, .04, .93), roll = rand();
+        const intP = clamp(P.int * INT_SCALE * (1 - .3 * m), .003, .1), compP = clamp((P.comp + .09 * m - (side ? .04 : 0)) * compMul, .04, .93), roll = rand();
         if (roll < intP) { int = true; time = ri(6, 11); }
         else if (roll < intP + compP) {
           y = Math.max(P.min, Math.round(normal(P.mean + (P.deep ? 3 : 2) * m, P.sd)));
-          if (m >= 1 && rand() < .07 * m) y += P.noBig ? ri(1, 4) : ri(10, 35);
-          fumble = rand() < .008; oob = rand() < (P.oob || .2);
+          if (m >= 1 && rand() < .07 * m * (side ? .5 : 1)) y += P.noBig ? ri(1, 4) : ri(10, 35);
+          if (side) y = Math.max(P.min, Math.round(y * .8));
+          fumble = rand() < .008; oob = rand() < (side ? .85 : .2);
           time = ri(5, 9);
         } else { inc = true; time = ri(4, 7); }
       }
@@ -826,12 +832,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function doScrimmage() {
     const o = S.poss, d = 1 - o, off = S.offCall, def = S.defCall, P = OFFP[off];
-    const roll = rollPlay(off, def, S.offPkg, S.defPkg), m = roll.m;
+    const roll = rollPlay(off, def, S.offPkg, S.defPkg, S.offSide), m = roll.m;
     const st = S.teams[o].st, from = S.spot;
     st.plays++;
     const r = { read: null, m, fromX: fx(o, from), tone: "", sub: "" };
     let { y, time, fumble, int, sack, inc, oob } = roll, text = "";
-    Object.assign(r, { mc: M[off][def], pe: roll.pe, opk: S.offPkg, dpk: S.defPkg });
+    Object.assign(r, { mc: M[off][def], pe: roll.pe, opk: S.offPkg, dpk: S.defPkg, side: !!S.offSide && sideOn(off) });
     tick(time);
     r.oob = oob;
 
@@ -865,7 +871,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
     // Base narration
     if (sack) text = `Sacked for a loss of ${-y}.`;
-    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", so: "The out route is jumped and knocked away at the sideline.", te: "The throw to the tackle falls incomplete." }[off];
+    else if (inc) text = { sc: "The screen is sniffed out and thrown away.", sp: "The quick throw falls incomplete.", dp: "The deep shot sails incomplete.", pa: "The play-action pass is broken up.", te: "The throw to the tackle falls incomplete." }[off];
     else if (P.kind === "run") {
       if (ns >= 100) text = `${P.name}, ${yd(y)}, into the end zone!`;
       else if (y < 0) text = `${P.name} is stuffed in the backfield for a loss of ${-y}.`;
@@ -961,8 +967,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     w.oh = P.kind === "run" ? (off === "or" ? .034 : .028) : (P.deep ? .035 : .016);
     if (def === "rb" || def === "ab" || def === "blk") w.oh += .008;
     if (thrown) w.dh = .008 + (def === "ma" ? .012 : def === "zo" ? .004 : 0);
-    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03, so: .01 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
-    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005, so: .004 }[off]) * (def === "ma" ? 1.5 : 1);
+    if (thrown && !complete && P.air >= 6) w.dpi = ({ sp: .012, dp: .04, pa: .03 }[off]) * ({ ma: 2, zo: 1, pr: .5, ab: 1.5, rb: 1, ba: 1, blk: 1.5, ret: .5 }[def]);
+    if (thrown && P.air >= 6) w.opi = ({ sp: .004, dp: .007, pa: .005 }[off]) * (def === "ma" ? 1.5 : 1);
     if (thrown) w.rtp = def === "ab" ? .012 : def === "rb" ? .004 : .0015;
     w.fm = P.kind === "run" ? .004 : complete ? .002 : 0;
     if (S.offPkg === "jumbo" && thrown) w.idf = .015;
@@ -1344,12 +1350,18 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.toGo <= 2) { w.ir += 3; w.or += 1; w.dp = .7; }
     if (S.spot >= 88) { w.dp = .3; w.ir += 1; }
     if (late && diff < 0) { w.ir = .5; w.or = .5; w.dp += 2; w.sp += 1; }
-    // Sideline routes when the clock matters: heavily when trailing late, sometimes before the half
-    if (sidelineOK()) w.so = (late && diff <= 0) || (S.quarter >= 5 && diff <= 0) ? 3.5 : S.quarter === 2 ? 1.5 : .5;
     fitWeights(w);
     // Lean on the run: tuned so the computer runs on about 40% of its play calls
     w.ir *= RUN_BIAS; w.or *= RUN_BIAS;
     return wpick(w);
+  }
+  // Computer offenses work the sideline when they need to stop the clock
+  function cpuSide(id) {
+    if (!sidelineOK() || !sideOn(id)) return false;
+    const diff = S.teams[S.poss].score - S.teams[1 - S.poss].score;
+    if (S.quarter >= 4 && diff <= 0) return rand() < .8;
+    if (S.quarter === 2) return rand() < .6;
+    return false;
   }
   function cpuDef() {
     // 4th down with a kick likely: often send out the return or block unit
@@ -1524,7 +1536,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         ${liveField()}
         <p class="banner">${esc(name(d))} are in <b>${DEF_PKGS[S.defPkg].name}</b> (${DEF_PKGS[S.defPkg].who}).</p>
         <div class="lookcard"><span class="eyebrow">The look</span><span class="lk">${L.name}</span><span class="lh muted">${L.hint} Defenses disguise it sometimes, so it is not a sure thing.</span></div>
-        <div class="mycall"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg].short}</span><span class="nm">${cur.name}</span></div>
+        <div class="mycall"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg].short}</span><span class="nm">${cur.name}${S.offSide ? " · Sideline" : ""}</span></div>
+        ${S.offSide ? `<p class="muted" style="font-size:14px">Checking to a play without a sideline version (Inside Run, Tackle Eligible) drops the sideline call.</p>` : ""}
         <p class="sechead">Check to</p>
         <div class="plays">${audIds().map(card).join("")}</div>
         <div class="lockbar two">
@@ -1569,6 +1582,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (puntAvailable()) st += card("ret", DEFP.ret.name, DEFP.ret.tag, DEFP.ret.desc, "st");
       st += `</div>`;
     }
+    const canSide = isOff && sidelineOK(), sideNow = canSide && !!S.selSide && sideOn(S.sel);
+    const sideToggle = canSide ? `<p class="sechead">Clock</p>
+        <button class="btn ghost" data-a="side" aria-pressed="${sideNow}" ${sideOn(S.sel) ? "" : "disabled"} style="width:100%">${sideNow ? "Sideline: get out of bounds ✓" : "Run it to the sideline"}<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">${sideOn(S.sel) || !S.sel ? "Stops the clock on most gains. Fewer yards, and Cover 2 sits on short throws to the sideline." : "Not available on this play."}</small></button>` : "";
     const selName = S.sel ? (S.sel === "punt" ? "Punt" : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
     return `${board()}
       ${S.locked && !isOff && !bothHuman() ? "" : bannerHtml()}
@@ -1584,7 +1600,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <p class="sechead">${isOff ? "Plays" : "Calls"}</p>
         <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>
         ${st}
-        <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}` : "Pick a call"}</button></div>
+        ${sideToggle}
+        <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}${sideNow ? " · Sideline" : ""}` : "Pick a call"}</button></div>
       </div>`;
   }
 
@@ -1611,7 +1628,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     else if (r.offId === "kneel") offName = "Kneel down";
     else if (r.offId === "fp") offName = "Fake punt"; else if (r.offId === "ffg") offName = "Fake field goal";
     else if (r.offId === "onside") offName = "Onside kick"; else if (r.offId === "kickoff") offName = "Kickoff";
-    else offName = OFFP[r.offId].name;
+    else offName = OFFP[r.offId].name + (r.side ? " · Sideline" : "");
     let label = "Next play";
     if (S.needPAT || S.tryChoice) label = "Point after";
     else if (S.kickChoice) label = "Kickoff";
@@ -2135,7 +2152,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function netCan(a, ds) {
     const me = NET.me;
-    if (["pick", "pkg", "audpick"].includes(a)) return actor() === me;
+    if (["pick", "pkg", "audpick", "side"].includes(a)) return actor() === me;
     if (me < 0) return false;
     switch (a) {
       case "lock": return S.phase === "call" && actor() === me;
@@ -2362,7 +2379,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         if (S.side === "off") msg = `${tm.name} are calling their play. You'll call your defense next.`;
         else {
           msg = `${tm.name} are calling their defense.`;
-          if (NET.me === o) mine = `<div class="mycall" style="--team:${S.teams[o].color}"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short : ""}</span><span class="nm">${esc(callName(S.offCall))}</span></div>`;
+          if (NET.me === o) mine = `<div class="mycall" style="--team:${S.teams[o].color}"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short : ""}</span><span class="nm">${esc(callName(S.offCall))}${S.offSide ? " · Sideline" : ""}</span></div>`;
         }
         break;
       case "los": msg = `${tm.name} are reading your defense at the line and may audible.`;
@@ -2413,6 +2430,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "audible": if (S.phase === "los") { audible(S.audSel); window.scrollTo(0, 0); } break;
       case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
       case "pick": S.sel = ds.v; break;
+      case "side": if (S.phase === "call" && S.side === "off" && sideOn(S.sel)) S.selSide = !S.selSide; break;
       case "pkg": if (S.nhLock) break; S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
       case "lock": lock(); window.scrollTo(0, 0); break;
       case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
