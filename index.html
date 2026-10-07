@@ -562,8 +562,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // OT periods match the quarter length, except Quick games get 5-minute OT periods
   const otLen = () => S.cfg.qLen === 240 ? 300 : S.cfg.qLen;
   function startOT(lead) {
-    S.quarter++; S.clock = otLen(); S.tos = [2, 2];
-    const n = S.quarter - 4, step = (n - 1) % 4, o = n > 1 ? otState() : null;
+    S.quarter++; S.clock = otLen();
+    const n = S.quarter - 4, step = (n - 1) % 4;
+    if (step % 2 === 0) S.tos = [3, 3]; // 3 timeouts per two-period OT block (1OT-2OT, 3OT-4OT...)
+    const o = n > 1 ? otState() : null;
     if (!o) { startToss(true, `${lead} Both teams get the ball unless the defense scores, then it's sudden death.`); return; }
     if (step === 0) { startToss(true, `${lead} New coin toss.${o.ph === 3 ? " Still sudden death: the next score wins." : ""}`); return; }
     if (step === 2) {
@@ -1476,7 +1478,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const team = i => `
       <div class="bteam ${i ? "right" : ""}" style="--team:${t[i].color}">
         <span class="stripe"></span>
-        <div class="id"><span class="abbr">${inGame && !tossing && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].slice(0, S.quarter >= 5 ? 2 : 3).map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
+        <div class="id"><span class="abbr">${inGame && !tossing && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
         <span class="pts">${t[i].score}</span>
       </div>`;
     return `<header class="board" aria-label="Scoreboard">
@@ -2561,7 +2563,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     let code = null;
     try { code = new URLSearchParams(location.search).get("g"); } catch (e) {}
     if (code && netReady()) { if (S.phase !== "setup") S = { v: 1, phase: "setup", draft: S.cfg ? JSON.parse(JSON.stringify(S.cfg)) : defaultDraft() }; netConnect(code); return; }
-    if (S.teams && !S.tos) { S.tos = S.quarter >= 5 ? [2, 2] : [3, 3]; S.clockRunning = false; }
+    if (S.teams && !S.tos) { S.tos = [3, 3]; S.clockRunning = false; }
     render();
   }
 
