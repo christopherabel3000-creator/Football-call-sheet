@@ -1062,7 +1062,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     // With no return unit on the field the ball is left to roll; a return unit sets up a real runback
     const roll = dc === "ret" || dc === "blk" ? 0 : ri(2, 8);
-    const dist = Math.round(normal(43, 6)) + roll, land = from + dist;
+    const dist = Math.round(normal(46, 6)) + roll, land = from + dist;
     if (land >= 100) {
       startDrive(d, 20);
       Object.assign(r, { head: "Punt", text: `Punt of ${yd(100 - from)} into the end zone. Touchback.`, toX: fx(d, 20) });
