@@ -167,7 +167,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
 .play .nm { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.05; text-transform: uppercase; }
 .play .ds { font-size: 14px; color: var(--muted); line-height: 1.3; }
 .play[aria-pressed="true"] { border-color: var(--team); box-shadow: inset 0 0 0 2px var(--team); background: color-mix(in srgb, var(--team) 10%, var(--card)); }
-.play.st { border-style: dashed; }
+.play.st, .pkg.stpkg { border-style: dashed; }
 .sechead { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .lockbar { position: sticky; bottom: 0; padding-block: 12px calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--paper) 70%, transparent); }
 
@@ -321,6 +321,15 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     p13: { name: "13 Personnel", short: "13", who: "1 RB · 3 TE · 1 WR", desc: "Heavy. Power runs, few targets.", sack: -.015, comp: { dp: .65, sp: .9 } },
     jumbo: { name: "Jumbo", short: "Jumbo", who: "6 OL · 1 RB · 3 TE", desc: "Extra lineman for short yardage. The tackle can report eligible.", sack: -.02, comp: { dp: .3, sp: .75, sc: .8, pa: .85 } }
   };
+  // Special teams units: sending one out is visible to the defense, and the kick (or a fake) is only possible from one
+  const ST_PKGS = {
+    punt: { name: "Punt Team", short: "Punt team", who: "Punter · long snapper · gunners", desc: "Kick it away, or run the fake punt.", plays: ["punt", "fp"] },
+    fgu: { name: "Field Goal Unit", short: "FG unit", who: "Kicker · holder · long snapper", desc: "Kick it, or run the fake field goal.", plays: ["fg", "ffg"] }
+  };
+  const isST = pk => !!ST_PKGS[pk];
+  const pkgInfo = pk => OFF_PKGS[pk] || ST_PKGS[pk];
+  const stPkgIds = () => (puntAvailable() ? ["punt"] : []).concat(fgAvailable() ? ["fgu"] : []);
+  const stPkgFor = id => id === "punt" || id === "fp" ? "punt" : id === "fg" || id === "ffg" ? "fgu" : null;
   const DEF_PKGS = {
     base: { name: "Base 4-3", short: "Base", who: "4 DL · 3 LB · 4 DB", desc: "Built for balance and stopping the run." },
     nickel: { name: "Nickel", short: "Nickel", who: "4 DL · 2 LB · 5 DB", desc: "Extra corner for three-receiver sets." },
@@ -593,14 +602,30 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
     // No huddle: both sides stay in the personnel that was on the field for the last snap
-    S.nhLock = S.noHuddle && S.last && S.last.team === S.poss && S.last.opk && S.last.dpk ? { off: S.last.opk, def: S.last.dpk } : null;
+    S.nhLock = S.noHuddle && S.last && S.last.team === S.poss && OFF_PKGS[S.last.opk] && S.last.dpk ? { off: S.last.opk, def: S.last.dpk } : null;
     S.noHuddle = false;
     if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = S.nhLock ? S.nhLock.off : pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
-    else { S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); S.offSide = cpuSide(S.offCall); defStep(); }
+    else {
+      S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); S.offSide = cpuSide(S.offCall);
+      if (stPkgFor(S.offCall)) S.offPkg = stPkgFor(S.offCall); // a kick or a fake needs the special teams unit on the field
+      defStep();
+    }
   }
+  // Packages each side may choose this snap. No huddle locks personnel, but a special teams unit can still
+  // run on, and when it does the defense is allowed to substitute too.
+  function pkgChoices(isOff) {
+    if (isOff) return (S.nhLock ? [S.nhLock.off] : OFF_PKG_IDS).concat(S.twoPt ? [] : stPkgIds());
+    return S.nhLock && !isST(S.offPkg) ? [S.nhLock.def] : DEF_PKG_IDS;
+  }
+  // Plays the offense can call from a package: the kick and its fake from a special teams unit, the playbook otherwise
+  const offCallsFor = pk => isST(pk) ? ST_PKGS[pk].plays.filter(id => id === "punt" || id === "fp" ? puntAvailable() : fgAvailable())
+    : offIds(pk).concat(kneelAvailable() ? ["kneel"] : []);
+  // Defensive calls: block and return units only answer a special teams unit
+  const defCallsFor = () => DEF_IDS.concat(S.offPkg === "punt" ? ["blk", "ret"] : S.offPkg === "fgu" ? ["blk"] : []);
   function defStep() {
-    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = S.nhLock ? S.nhLock.def : pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
-    else { S.defPkg = S.nhLock ? S.nhLock.def : cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
+    const locked = S.nhLock && !isST(S.offPkg);
+    if (!S.teams[1 - S.poss].cpu) { S.side = "def"; S.sel = null; S.pkgSel = locked ? S.nhLock.def : pkgMem(1 - S.poss).def; S.phase = passPhone() ? "handoff" : "call"; }
+    else { S.defPkg = locked ? S.nhLock.def : cpuDefPkg(); S.defCall = cpuDef(); afterDef(); }
   }
   /* ---------- Audibles ---------- */
   const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
@@ -642,8 +667,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function pkgMem(t) { S.pkgMem = S.pkgMem || {}; return (S.pkgMem[t] = S.pkgMem[t] || { off: "p11", def: "nickel" }); }
   function lock() {
     if (!S.sel) return;
-    if (S.side === "off") { S.offPkg = S.pkgSel || "p11"; pkgMem(S.poss).off = S.offPkg; }
-    else { S.defPkg = S.pkgSel || "nickel"; pkgMem(1 - S.poss).def = S.defPkg; }
+    const isOff = S.side === "off", pk = S.pkgSel || (isOff ? "p11" : "nickel");
+    if (!pkgChoices(isOff).includes(pk) || !(isOff ? offCallsFor(pk) : defCallsFor()).includes(S.sel)) return;
+    if (isOff) { S.offPkg = pk; if (!isST(pk)) pkgMem(S.poss).off = pk; }
+    else { S.defPkg = pk; pkgMem(1 - S.poss).def = S.defPkg; }
     if (S.side === "off") { S.offCall = S.sel; S.offSide = !!S.selSide && sideOn(S.sel) && sidelineOK(); S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
     else { S.defCall = S.sel; afterDef(); }
   }
@@ -1341,7 +1368,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function cpuDefPkg() {
     const w = ({ p10: { dime: 3, nickel: 3, base: .3 }, p11: { nickel: 5, base: 1.5, dime: 1 }, p12: { base: 4, nickel: 2 },
-      p21: { base: 5, nickel: 1 }, p13: { base: 4, goal: 1 }, jumbo: { goal: 3, base: 2 } })[S.offPkg || "p11"];
+      p21: { base: 5, nickel: 1 }, p13: { base: 4, goal: 1 }, jumbo: { goal: 3, base: 2 },
+      punt: { base: 3, nickel: 1 }, fgu: { base: 2, goal: 2 } })[S.offPkg || "p11"];
     const x = Object.assign({ base: 0, nickel: 0, dime: 0, goal: 0 }, w);
     if (S.toGo >= 8) { x.dime += 2; x.nickel += 1; x.goal = 0; }
     if (S.spot >= 95 || S.twoPt) x.goal += 2;
@@ -1399,11 +1427,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return false;
   }
   function cpuDef() {
-    // 4th down with a kick likely: often send out the return or block unit
-    if (S.down === 4 && (puntAvailable() || fgAvailable()) && !(S.toGo <= 2 && S.spot >= 40)) {
-      const x = rand();
-      if (puntAvailable() && S.spot < 62) { if (x < .55) return "ret"; if (x < .67) return "blk"; }
-      else if (fgAvailable() && x < .15) return "blk";
+    // The kicking unit ran on: usually set up the return or go after the kick. Staying in a real
+    // defense guards against the fake. Against regular personnel on 4th down they know it's a go.
+    if (isST(S.offPkg)) {
+      const x = rand(), fakeRisk = S.toGo <= 3 ? .1 : 0;
+      if (S.offPkg === "punt") { if (x < .58 - fakeRisk) return "ret"; if (x < .72 - fakeRisk) return "blk"; }
+      else if (x < .18 - fakeRisk / 2) return "blk";
     }
     const w = { rb: 2, ba: 3, ma: 2, zo: 2, c3: 2, pr: 1, ab: 1, zb: 1 };
     if (S.toGo >= 8) { w.rb = .7; w.pr = 2.5; w.zo = 3; w.ab = 1.5; w.c3 = 2.5; w.zb = 1.5; }
@@ -1586,40 +1615,48 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
   function vCall() {
     const isOff = S.side === "off", t = isOff ? S.poss : 1 - S.poss, tm = S.teams[t];
-    const pk = S.pkgSel || (isOff ? "p11" : "nickel");
-    const ids = isOff ? offIds(pk) : DEF_IDS, book = isOff ? OFFP : DEFP;
+    const choices = pkgChoices(isOff);
+    let pk = S.pkgSel || (isOff ? "p11" : "nickel");
+    if (!choices.includes(pk)) pk = choices[0];
+    const kickUnit = isOff && isST(pk);
+    const ids = isOff ? (kickUnit ? [] : offIds(pk)) : DEF_IDS, book = isOff ? OFFP : DEFP;
     const fitTag = id => isOff ? fitTagFor(pk, id) : "";
-    const pkgIds = isOff ? OFF_PKG_IDS : DEF_PKG_IDS, pkgBook = isOff ? OFF_PKGS : DEF_PKGS;
-    const pkgPicker = `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>
-      <div class="pkgs ${isOff ? "" : "two"}">${pkgIds.map(id => `<button class="pkg" data-a="pkg" data-v="${id}" aria-pressed="${pk === id}">
-        <span class="pn">${pkgBook[id].name}</span><span class="pw">${pkgBook[id].who}</span></button>`).join("")}</div>
-      <p class="muted pkdesc">${esc(pkgBook[pk].desc)}</p>`;
-    const lockedPkg = S.nhLock ? `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>
-      <p class="banner">No huddle. Personnel is locked: ${isOff ? "you stay" : "you're stuck"} in <b>${pkgBook[pk].name}</b> (${pkgBook[pk].who}).</p>` : "";
-    const theirPkg = !isOff && S.offPkg ? `<p class="banner">${esc(name(S.poss))} are in <b>${OFF_PKGS[S.offPkg].name}</b> (${OFF_PKGS[S.offPkg].who}). Their play is hidden.</p>` : "";
+    const pkgBook = isOff ? { ...OFF_PKGS, ...ST_PKGS } : DEF_PKGS;
+    const pkgBtn = id => `<button class="pkg${isST(id) ? " stpkg" : ""}" data-a="pkg" data-v="${id}" aria-pressed="${pk === id}">
+        <span class="pn">${pkgBook[id].name}</span><span class="pw">${pkgBook[id].who}</span></button>`;
+    const regIds = choices.filter(id => !isST(id)), stIds = choices.filter(isST);
+    const lockNote = S.nhLock && (isOff || !isST(S.offPkg))
+      ? `<p class="banner">No huddle. Personnel is locked: ${isOff ? "you stay" : "you're stuck"} in <b>${pkgBook[S.nhLock[isOff ? "off" : "def"]].name}</b>${isOff && stIds.length ? ", unless you send out the kicking unit" : ""}.</p>` : "";
+    const pkgPicker = `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>${lockNote}
+      ${regIds.length > 1 || stIds.length ? `<div class="pkgs ${isOff && regIds.length > 1 ? "" : "two"}">${regIds.map(pkgBtn).join("")}</div>` : ""}
+      ${stIds.length ? `<p class="sechead">Special teams unit</p><div class="pkgs two">${stIds.map(pkgBtn).join("")}</div>` : ""}
+      <p class="muted pkdesc">${esc(pkgBook[pk].desc)}${isOff && S.down === 4 && !S.twoPt && stIds.length ? " The defense sees who runs onto the field before they call it." : ""}</p>`;
+    const theirPkg = !isOff && S.offPkg ? `<p class="banner">${esc(name(S.poss))} ${isST(S.offPkg)
+        ? `sent out the <b>${ST_PKGS[S.offPkg].name.toLowerCase()}</b> (${ST_PKGS[S.offPkg].who}). They're lining up to kick, but it could be a fake.`
+        : `are in <b>${OFF_PKGS[S.offPkg].name}</b> (${OFF_PKGS[S.offPkg].who}).${S.down === 4 && !S.twoPt ? " They kept the offense on the field: they're going for it." : ""} Their play is hidden.`}</p>` : "";
     const card = (id, nm, tag, ds, extra) => `<button class="play ${extra || ""}" data-a="pick" data-v="${id}" aria-pressed="${S.sel === id}">
         <span class="tag">${tag}</span><span class="nm">${nm}</span><span class="ds">${ds}</span></button>`;
     let st = "";
-    if (isOff && kneelAvailable()) {
+    if (isOff && !kickUnit && kneelAvailable()) {
       st += `<p class="sechead">Run out the clock</p><div class="plays">` +
         card("kneel", "Kneel down", "Clock", `Take a knee. Lose a yard and let about 40 seconds run off. ${esc(name(1 - S.poss))} have no timeouts left.`, "st") + `</div>`;
     }
-    if (isOff && (puntAvailable() || fgAvailable())) {
-      st += `<p class="sechead">Special teams</p><div class="plays">`;
-      if (puntAvailable()) st += card("punt", "Punt", "Kick", "Flip the field. Averages about 46 yards.", "st");
-      if (fgAvailable()) { const k = kickDist(); st += card("fg", `${k}-yd field goal`, "Kick", `About ${Math.round(fgProb(k) * 100)}% from here.`, "st"); }
-      st += `</div><p class="sechead">Trick plays</p><div class="plays">`;
-      if (puntAvailable()) st += card("fp", "Fake Punt", "Trick", "Line up to punt, then run or throw for the first down. Deadly if they sell out for the kick.", "st");
-      if (fgAvailable()) st += card("ffg", "Fake Field Goal", "Trick", "The holder keeps it. Works if they rush the kick, gets stuffed if they don't.", "st");
+    if (kickUnit) {
+      st += `<p class="sechead">Kick</p><div class="plays">`;
+      if (pk === "punt") st += card("punt", "Punt", "Kick", "Flip the field. Averages about 46 yards.", "st");
+      else { const k = kickDist(); st += card("fg", `${k}-yd field goal`, "Kick", `About ${Math.round(fgProb(k) * 100)}% from here.`, "st"); }
+      st += `</div><p class="sechead">Trick play</p><div class="plays">`;
+      if (pk === "punt") st += card("fp", "Fake Punt", "Trick", "Line up to punt, then run or throw for the first down. Deadly if they sell out for the kick.", "st");
+      else st += card("ffg", "Fake Field Goal", "Trick", "The holder keeps it. Works if they rush the kick, gets stuffed if they don't.", "st");
       st += `</div>`;
     }
-    if (!isOff && !S.twoPt && (puntAvailable() || fgAvailable())) {
+    if (!isOff && isST(S.offPkg)) {
       st += `<p class="sechead">Special teams</p><div class="plays">`;
       st += card("blk", DEFP.blk.name, DEFP.blk.tag, DEFP.blk.desc, "st");
-      if (puntAvailable()) st += card("ret", DEFP.ret.name, DEFP.ret.tag, DEFP.ret.desc, "st");
+      if (S.offPkg === "punt") st += card("ret", DEFP.ret.name, DEFP.ret.tag, DEFP.ret.desc, "st");
       st += `</div>`;
     }
-    const canSide = isOff && sidelineOK(), sideNow = canSide && !!S.selSide && sideOn(S.sel);
+    const canSide = isOff && !kickUnit && sidelineOK(), sideNow = canSide && !!S.selSide && sideOn(S.sel);
     const sideToggle = canSide ? `<p class="sechead">Clock</p>
         <button class="btn ghost" data-a="side" aria-pressed="${sideNow}" ${sideOn(S.sel) ? "" : "disabled"} style="width:100%">${sideNow ? "Sideline: get out of bounds ✓" : "Run it to the sideline"}<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">${sideOn(S.sel) || !S.sel ? "Stops the clock on most gains. Fewer yards, and Cover 2 sits on short throws to the sideline." : "Not available on this play."}</small></button>` : "";
     const selName = S.sel ? (S.sel === "punt" ? "Punt" : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
@@ -1633,9 +1670,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         </div>
         ${liveField()}
         ${theirPkg}
-        ${S.nhLock ? lockedPkg : pkgPicker}
-        <p class="sechead">${isOff ? "Plays" : "Calls"}</p>
-        <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>
+        ${pkgPicker}
+        ${ids.length ? `<p class="sechead">${isOff ? "Plays" : "Calls"}</p>
+        <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>` : ""}
         ${st}
         ${sideToggle}
         <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}${sideNow ? " · Sideline" : ""}` : "Pick a call"}</button></div>
@@ -2416,7 +2453,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         if (S.side === "off") msg = `${tm.name} are calling their play. You'll call your defense next.`;
         else {
           msg = `${tm.name} are calling their defense.`;
-          if (NET.me === o) mine = `<div class="mycall" style="--team:${S.teams[o].color}"><span class="eyebrow">Your call · ${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short : ""}</span><span class="nm">${esc(callName(S.offCall))}${S.offSide ? " · Sideline" : ""}</span></div>`;
+          if (NET.me === o) mine = `<div class="mycall" style="--team:${S.teams[o].color}"><span class="eyebrow">Your call · ${pkgInfo(S.offPkg) ? pkgInfo(S.offPkg).short : ""}</span><span class="nm">${esc(callName(S.offCall))}${S.offSide ? " · Sideline" : ""}</span></div>`;
         }
         break;
       case "los": msg = `${tm.name} are reading your defense at the line and may audible.`;
@@ -2468,7 +2505,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
       case "pick": S.sel = ds.v; break;
       case "side": if (S.phase === "call" && S.side === "off" && sideOn(S.sel)) S.selSide = !S.selSide; break;
-      case "pkg": if (S.nhLock) break; S.pkgSel = ds.v; if (S.sel === "te" && ds.v !== "jumbo") S.sel = null; break;
+      case "pkg": {
+        const isOff = S.side === "off";
+        if (!pkgChoices(isOff).includes(ds.v)) break;
+        S.pkgSel = ds.v;
+        if (isOff && S.sel && !offCallsFor(ds.v).includes(S.sel)) { S.sel = null; S.selSide = false; }
+        break;
+      }
       case "lock": lock(); window.scrollTo(0, 0); break;
       case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
       case "pat": doPAT(ds.v); break;
