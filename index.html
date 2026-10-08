@@ -1923,7 +1923,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         master = ctx.createGain(); master.gain.value = .95;
         comp.connect(master); master.connect(ctx.destination);
         amb = ctx.createGain(); amb.gain.value = 1; amb.connect(comp);
-        hornBus = ctx.createGain(); hornBus.gain.value = 1; hornBus.connect(comp);
+        hornBus = ctx.createGain(); hornBus.gain.value = .8; hornBus.connect(comp);
       }
       if (ctx.state === "suspended") ctx.resume();
       return ctx;
@@ -2016,7 +2016,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         }
       },
       horn(t, len) {
-        len = len || 2.2;
+        len = len || 1.76;
         // Duck everything else so the horn is the main sound, then bring the crowd back up underneath
         amb.gain.cancelScheduledValues(t);
         amb.gain.setTargetAtTime(.18, t, .04);
@@ -2028,7 +2028,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         const honk = filt("peaking", 900, 1.2); honk.gain.value = 7;
         const lp = filt("lowpass", 3200, .8), g = ctx.createGain();
         pre.connect(shaper); shaper.connect(honk); honk.connect(lp); lp.connect(g); g.connect(hornBus);
-        const end = env(g, t, .03, .55, len, .4);
+        const end = env(g, t, .03, .42, len, .4);
         const flutter = ctx.createOscillator(), fg = ctx.createGain(); flutter.frequency.value = 7; fg.gain.value = .04;
         flutter.connect(fg); fg.connect(g.gain); flutter.start(t); flutter.stop(end);
         [[110, "sawtooth", .5], [138.6, "sawtooth", .42], [164.8, "sawtooth", .38], [220, "sawtooth", .22], [55, "square", .3]].forEach(([f, type, lvl]) =>
@@ -2147,11 +2147,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     if (crowd) cues.push(["crowd", t + .2, crowd]);
     const hornForScore = neutral ? (!patOnly && (homeScored || awayScored)) : (homeScored && (!isPAT || r.team !== HOME));
-    if (hornForScore) cues.push(["horn", t + .45, 2.2]);
+    if (hornForScore) cues.push(["horn", t + .45, 1.76]);
     // Made extra point: a shorter horn (half the touchdown horn) for the home team, or for anyone at the Super Bowl
     if (r.offId === "xp" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .3, 1.1]);
     // Made two-point conversion: the full touchdown-length horn
-    if (r.pat === "two" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .45, 2.2]);
+    if (r.pat === "two" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .45, 1.76]);
     return cues;
   }
   function cuesFor(a, pre) {
@@ -2174,7 +2174,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (S.neutral) cues.push(["crowd", t + .2, "roar"]);
       else if (homeWin) cues.push(["crowd", t + .2, "roar"]);
       else if (S.teams[HOME].score < S.teams[1 - HOME].score) cues.push(["crowd", t + .2, "groan"]);
-      if (homeWin || S.neutral) cues.push(["horn", t + .4, 3.2]);
+      if (homeWin || S.neutral) cues.push(["horn", t + .4, 2.56]);
     }
     return cues;
   }
