@@ -1917,7 +1917,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         const C = window.AudioContext || window.webkitAudioContext;
         if (!C) return null;
         try { ctx = new C(); } catch (e) { return null; }
-        // Signal chain: crowd/whistles (amb) and horn each feed a compressor, so loud moments stay clean
+        // Signal chain: crowd (amb) and horn each feed a compressor, so loud moments stay clean
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 4; comp.attack.value = .005; comp.release.value = .25;
         master = ctx.createGain(); master.gain.value = .95;
@@ -1964,16 +1964,6 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     };
 
     const fx = {
-      whistle(t, len) {
-        len = len || .4;
-        // Softer referee whistle: lower pitch, pure sine (no shrill overtones), gentle trill, low-passed, quieter
-        const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), lp = filt("lowpass", 2600, .7);
-        o.type = "sine"; o.frequency.value = 2150;
-        lfo.frequency.value = 24; lg.gain.value = 60; lfo.connect(lg); lg.connect(o.frequency);
-        o.connect(lp); lp.connect(g); g.connect(amb);
-        const end = env(g, t, .02, .08, len, .05);
-        o.start(t); lfo.start(t); o.stop(end); lfo.stop(end);
-      },
       crowd(t, kind) {
         const s = CROWD[kind]; if (!s) return;
         const total = s.a + s.hold + s.rel;
@@ -2134,7 +2124,6 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (r.offId === "punt" || r.offId === "fg" || r.offId === "xp") { cues.push(["kick", 0]); t = r.offId === "punt" ? .25 : .7; }
     const stuffed = r.offId !== "kneel" && (r.head === "Sack" || r.tod || r.head === "Fumble" || (r.y != null && r.y < 0));
     if (stuffed) cues.push(["thud", 0]);
-    if (!isPAT) cues.push(["whistle", t + .1, .12]);
     // How good was the play for the team that had the ball?
     let q = r.s;
     if (q == null) {
@@ -2167,17 +2156,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function cuesFor(a, pre) {
     if (!S.teams) return [];
-    if (a === "mute") return [["whistle", 0, .25]];
-    if (a === "to") return [["whistle", 0, .6]];
+    if (a === "mute" || a === "to") return [];
     if (a === "spike") return [];
-    if (S.phase === "penalty" && pre.phase !== "penalty") return [["whistle", 0, .5]];
+    if (S.phase === "penalty" && pre.phase !== "penalty") return [];
     const cues = [];
-    if (S.tmwJust) { S.tmwJust = false; if (S.phase !== "result") cues.push(["whistle", 0, .9]); }
+    if (S.tmwJust) S.tmwJust = false;
     let t = 0;
-    if (a === "kickoff" || a === "rematch") { cues.push(["whistle", 0, .5]); t = .7; }
-    // End of a quarter (and halftime, regulation): whistle only, never a horn
-    const periodEnded = a !== "rematch" && pre.teams && (pre.quarter !== S.quarter || (S.phase === "final" && pre.phase !== "final"));
-    if (periodEnded && S.phase !== "final") { cues.push(["whistle", t, .9]); t += 1.1; }
     // Visiting offense facing 3rd down: the home crowd gets loud
     if (S.snap && S.snap !== pre.snap && S.snap.down === 3 && S.snap.poss !== HOME && !S.twoPt && !S.neutral && S.phase !== "final") {
       cues.push(["thirdDown", t]);
@@ -2186,12 +2170,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.phase === "result" && S.last && S.last.id !== pre.lastId)
       resultCues(S.last, pre.scores).forEach(([n, at, arg]) => cues.push([n, at + t, arg]));
     if (S.phase === "final" && pre.phase !== "final") {
-      cues.push(["whistle", t, 1.3]);
       const homeWin = S.teams[HOME].score > S.teams[1 - HOME].score;
-      if (S.neutral) cues.push(["crowd", t + 1.2, "roar"]);
-      else if (homeWin) cues.push(["crowd", t + 1.2, "roar"]);
-      else if (S.teams[HOME].score < S.teams[1 - HOME].score) cues.push(["crowd", t + 1.2, "groan"]);
-      if (homeWin || S.neutral) cues.push(["horn", t + 1.4, 3.2]);
+      if (S.neutral) cues.push(["crowd", t + .2, "roar"]);
+      else if (homeWin) cues.push(["crowd", t + .2, "roar"]);
+      else if (S.teams[HOME].score < S.teams[1 - HOME].score) cues.push(["crowd", t + .2, "groan"]);
+      if (homeWin || S.neutral) cues.push(["horn", t + .4, 3.2]);
     }
     return cues;
   }
@@ -2509,7 +2492,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   let endTimer = null;
   function act(a, ds) {
     const pre = preSnap(a);
-    if (a === "mute") { const on = Sound.toggle(); render(); if (on) Sound.play([["whistle", 0, .25]]); return; }
+    if (a === "mute") { Sound.toggle(); render(); return; }
     if (a.startsWith("net")) { netAct(a); return; }
     if (NET.live && !netCan(a, ds)) return;
     const online = NET.live ? S.online : null;
