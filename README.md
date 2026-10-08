@@ -1,4 +1,4 @@
-# Call Sheet Football
+# Gridiron Duel
 
 A turn-based football coordinator game. Each coach picks their personnel and calls a play on offense or defense, then the snap is simulated.
 

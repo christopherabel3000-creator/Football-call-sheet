@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Call Sheet Football</title>
+<title>Gridiron Duel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@400;500&display=swap">
@@ -1551,7 +1551,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return `
       <div class="masthead">
         <p class="eyebrow">Coordinator football</p>
-        <h1>Call Sheet <em>Football</em></h1>
+        <h1>Gridiron <em>Duel</em></h1>
         <p class="muted">Two coordinators. Both sides call blind, then the play runs.</p>
       </div>
       ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
@@ -2371,8 +2371,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "netcode": { const el = typeof document !== "undefined" && document.getElementById("joincode"); netConnect(el ? el.value : ""); return; }
       case "netjoin": netJoin(); return;
       case "netshare": {
-        const url = inviteLink(NET.code), text = `Play Call Sheet Football with me. Game code ${NET.code}`;
-        if (typeof navigator !== "undefined" && navigator.share) { navigator.share({ title: "Call Sheet Football", text, url }).catch(() => {}); return; }
+        const url = inviteLink(NET.code), text = `Play Gridiron Duel with me. Game code ${NET.code}`;
+        if (typeof navigator !== "undefined" && navigator.share) { navigator.share({ title: "Gridiron Duel", text, url }).catch(() => {}); return; }
         try { navigator.clipboard.writeText(url).then(() => { NET.copied = true; render(); }); } catch (e) {}
         return;
       }
@@ -2420,7 +2420,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function vConnecting() {
     return `
-      <div class="masthead"><p class="eyebrow">Online game</p><h1>Call Sheet <em>Football</em></h1></div>
+      <div class="masthead"><p class="eyebrow">Online game</p><h1>Gridiron <em>Duel</em></h1></div>
       <section class="panel"><p class="muted dots">Connecting to game ${esc(NET.code || "")}</p></section>
       <div class="foot"><button class="linkbtn" data-a="netback">Cancel</button></div>`;
   }
@@ -2445,7 +2445,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     else body = `${vs}
       <section class="panel"><p class="muted dots">You're in. Waiting for ${esc(h.name)} to kick off</p></section>`;
     return `
-      <div class="masthead"><p class="eyebrow">Online game · ${esc(code)}</p><h1>Call Sheet <em>Football</em></h1></div>
+      <div class="masthead"><p class="eyebrow">Online game · ${esc(code)}</p><h1>Gridiron <em>Duel</em></h1></div>
       ${body}
       <div class="foot"><button class="linkbtn" data-a="netleave">Leave game</button></div>`;
   }
