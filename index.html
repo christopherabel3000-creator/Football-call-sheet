@@ -1966,11 +1966,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const fx = {
       whistle(t, len) {
         len = len || .4;
-        const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), bp = filt("bandpass", 3000, 3);
-        o.type = "triangle"; o.frequency.value = 2950;
-        lfo.frequency.value = 26; lg.gain.value = 140; lfo.connect(lg); lg.connect(o.frequency);
-        o.connect(bp); bp.connect(g); g.connect(amb);
-        const end = env(g, t, .015, .2, len, .06);
+        // Softer referee whistle: lower pitch, pure sine (no shrill overtones), gentle trill, low-passed, quieter
+        const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain(), lp = filt("lowpass", 2600, .7);
+        o.type = "sine"; o.frequency.value = 2150;
+        lfo.frequency.value = 24; lg.gain.value = 60; lfo.connect(lg); lg.connect(o.frequency);
+        o.connect(lp); lp.connect(g); g.connect(amb);
+        const end = env(g, t, .02, .08, len, .05);
         o.start(t); lfo.start(t); o.stop(end); lfo.stop(end);
       },
       crowd(t, kind) {
@@ -2133,7 +2134,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (r.offId === "punt" || r.offId === "fg" || r.offId === "xp") { cues.push(["kick", 0]); t = r.offId === "punt" ? .25 : .7; }
     const stuffed = r.offId !== "kneel" && (r.head === "Sack" || r.tod || r.head === "Fumble" || (r.y != null && r.y < 0));
     if (stuffed) cues.push(["thud", 0]);
-    if (!isPAT) cues.push(["whistle", t + .1, .3]);
+    if (!isPAT) cues.push(["whistle", t + .1, .12]);
     // How good was the play for the team that had the ball?
     let q = r.s;
     if (q == null) {
