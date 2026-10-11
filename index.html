@@ -1412,13 +1412,16 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const me = S.poss, diff = S.teams[me].score - S.teams[1 - me].score;
     const late = S.quarter >= 4 && S.clock <= 180;
     const kd = kickDist();
-    const needTD = late && diff < -3;
+    // Overtime: trailing on the answering possession means giving the ball back loses the game
+    const ot = S.quarter >= 5 ? S.ot : null;
+    const lastChance = !!ot && ot.ph === 2 && me !== ot.a && diff < 0;
+    const needTD = (late || lastChance) && diff < -3;
     if (fgAvailable() && S.down < 4 && !needTD && kd <= 55) return "fg";
     // Last snap of a half and out of field goal range: throw it up
     if (hailOK() && S.clock <= 8 && (S.quarter === 2 || diff <= 0) && !(fgAvailable() && kd <= 55 && diff >= -3)) return "hm";
     if (S.down === 4) {
       if (!needTD && kd <= 52 && (S.toGo > 2 || kd <= 35)) return "fg";
-      const goForIt = (late && diff < 0) || (S.toGo <= 1 && S.spot >= 45) || (S.spot >= 65 && S.toGo <= 3 && kd > 52);
+      const goForIt = lastChance || (late && diff < 0) || (S.toGo <= 1 && S.spot >= 45) || (S.spot >= 65 && S.toGo <= 3 && kd > 52);
       if (!goForIt) {
         // A rare fake when it's short yardage
         if (S.toGo <= 4 && rand() < .04) return S.spot < 62 || kd > 58 ? "fp" : "ffg";
