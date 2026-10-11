@@ -1556,6 +1556,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       </div>
       ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
       <section class="panel">
+        <div style="display:grid;gap:4px"><span class="eyebrow">Play the computer</span>
+        <p class="muted" style="font-size:15px">No friend needed. You coach the home team against a computer coordinator. Change names, colors and game length below.</p></div>
+        <button class="btn" data-a="solo">Play vs. Computer</button>
+      </section>
+      <section class="panel">
         <div style="display:grid;gap:4px"><span class="eyebrow">Play a friend online</span>
         <p class="muted" style="font-size:15px">Each of you plays on your own phone, from anywhere. Create a game and send the link, or type the code your friend sent you.</p></div>
         ${online}
@@ -2501,6 +2506,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "color": S.draft.t[+ds.t].color = ds.c; break;
       case "ctrl": S.draft.t[+ds.t].cpu = ds.v === "1"; break;
       case "qlen": S.draft.ot = ds.v === "ot"; S.draft.qLen = S.draft.ot ? 900 : +ds.v; break;
+      // One-tap solo game: the home team is yours, the away team gets the computer coordinator
+      case "solo": { if (online) break; const draft = S.draft; draft.t[0].cpu = false; draft.t[1].cpu = true; initGame(draft); S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "kickoff": { const draft = S.draft; initGame(draft); if (online) S.online = online; else S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "reveal": S.phase = S.side === "aud" ? "los" : "call"; window.scrollTo(0, 0); break;
       case "aud": S.draft.aud = ds.v === "1"; break;
