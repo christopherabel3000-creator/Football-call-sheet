@@ -618,6 +618,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const kneelAvailable = () => !!S.kneelSeries && kneelBase();
   function startPlay() {
     if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
+    S.scoutNote = null;
     S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
@@ -696,6 +697,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function resolve() {
     let r;
+    scoutRecord();
     if (S.twoPt) { resolveTwo(); return; }
     if (S.aud && S.wasRunning && S.clock > 8) tick(ri(2, 4)); // changing the play at the line uses up play clock
     const pre = snapState();
@@ -712,6 +714,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (r.m != null && !r.preSnap) { r.s = playScore(r, S.snap); r.read = verdict(r, S.snap); }
     if (S.aud) r.audNote = audNote();
     else if (S.look && S.look.fake && !r.preSnap && OFFP[S.offCall]) r.audNote = `The defense disguised it: they showed ${LOOKS[S.look.d].name.toLowerCase()} but played ${DEFP[S.defCall].name}.`;
+    else if (S.scoutNote && !r.preSnap) r.audNote = S.scoutNote.text;
     if (!noFlags && !preCode) {
       const code = rollLive(S.offCall, S.defCall, r);
       if (code) { setupPenalty(code, r, pre); return; }
@@ -1276,6 +1279,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!r.opk) { r.opk = S.offPkg; r.dpk = S.defPkg; }
     otTail(r);
     if (S.aud && r.offId) { r.aud = S.aud; if (!r.audNote) r.audNote = audNote(); }
+    else if (S.scoutNote && r.offId && !r.audNote) r.audNote = S.scoutNote.text;
     r.id = S.playId = (S.playId || 0) + 1;
     S.clockRunning = false; S.oobRestart = false;
     S.last = r; S.phase = "result"; S.banner = "";
@@ -1375,16 +1379,73 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.log.unshift({ q: S.quarter, clock: S.clock, team: t, sit: "Extra point", off: "Kick", def: "", text: r.text, score: `${S.teams[0].score}-${S.teams[1].score}` });
   }
 
+  /* ---------- Scouting ---------- */
+  // Every snap is charted for both coaches: what the offense ran and what the defense played, by situation.
+  // Older snaps fade, so a coach who changes things up is noticed. Computer coordinators lean their calls
+  // toward whatever beats the opponent's habits, but never stop mixing, so a coach can counter them in turn.
+  const SCOUT_DECAY = .9;  // each new snap in a situation shrinks the weight of the older ones
+  const SCOUT_PRIOR = 4;   // charted snaps needed before the computer trusts a tendency halfway
+  const ADAPT = .9;        // how hard the computer leans into the counter
+  const scoutBucket = () => S.twoPt || S.toGo <= 3 ? "s" : S.toGo <= 7 ? "m" : "l";
+  const BUCKET_TEXT = { s: "short yardage", m: "medium-yardage downs", l: "long-yardage downs" };
+  function scoutOf(t) {
+    S.scout = S.scout || [null, null];
+    const s = S.scout[t] || (S.scout[t] = {});
+    s.o = s.o || {}; s.d = s.d || {}; s.dp = s.dp || {};
+    return s;
+  }
+  function bump(map, key, item) {
+    const m = map[key] = map[key] || {};
+    Object.keys(m).forEach(k => { m[k] *= SCOUT_DECAY; });
+    m[item] = (m[item] || 0) + 1;
+  }
+  function scoutRecord() {
+    if (isST(S.offPkg)) return;
+    const b = scoutBucket(), opk = S.offPkg;
+    if (OFFP[S.offCall] && S.offCall !== "hm") {
+      const s = scoutOf(S.poss);
+      bump(s.o, b, S.offCall); bump(s.o, b + "|" + opk, S.offCall); bump(s.o, "*", S.offCall);
+    }
+    if (DEF_IDS.includes(S.defCall)) {
+      const s = scoutOf(1 - S.poss);
+      bump(s.d, b, S.defCall); bump(s.d, "*", S.defCall);
+      if (DEF_PKGS[S.defPkg]) { bump(s.dp, b, S.defPkg); bump(s.dp, b + "|" + opk, S.defPkg); }
+    }
+  }
+  // Blend charted situations (most specific first) into shares that add up to 1, plus how much to trust them
+  function tendency(map, keys) {
+    const f = {}; let n = 0;
+    keys.forEach(([k, wt]) => { const m = map[k]; if (!m) return; for (const id in m) { f[id] = (f[id] || 0) + m[id] * wt; n += m[id] * wt; } });
+    if (n < .5) return null;
+    for (const id in f) f[id] /= n;
+    return { f, conf: n / (n + SCOUT_PRIOR) };
+  }
+  const adaptMul = e => clamp(Math.exp(ADAPT * e), .2, 5);
+  const clashFor = (off, opk, dpk) => { const cl = ((CLASH[opk] || {})[dpk]) || { run: 0, pass: 0 }; return OFFP[off].kind === "run" ? cl.run : cl.pass; };
+  // The opponent's offensive habits in this situation, given the personnel they just sent out
+  const offTend = () => tendency(scoutOf(S.poss).o, [[scoutBucket() + "|" + S.offPkg, 1], [scoutBucket(), .5], ["*", .15]]);
+  const topOf = f => Object.keys(f).sort((a, b) => f[b] - f[a])[0];
+
   /* ---------- Computer coordinator ---------- */
   const RUN_BIAS = 3.3;
   function cpuOffPkg() {
     const diff = S.teams[S.poss].score - S.teams[1 - S.poss].score, late = S.quarter >= 4 && S.clock <= 180;
-    if (S.twoPt) return wpick({ p11: 2, p12: 2, p13: 1, jumbo: 1, p10: 1 });
-    if (S.toGo <= 1) return wpick({ jumbo: 3, p13: 2, p21: 2, p12: 1 });
-    if (late && diff < 0) return wpick({ p10: 3, p11: 4 });
-    if (S.toGo <= 3) return wpick({ p12: 3, p21: 2, p13: 1, p11: 2, jumbo: .5 });
-    if (S.toGo >= 8) return wpick({ p10: 3, p11: 5, p12: 1 });
-    return wpick({ p11: 5, p12: 2, p21: 1, p10: 1, p13: .7 });
+    let w;
+    if (S.twoPt) w = { p11: 2, p12: 2, p13: 1, jumbo: 1, p10: 1 };
+    else if (S.toGo <= 1) w = { jumbo: 3, p13: 2, p21: 2, p12: 1 };
+    else if (late && diff < 0) w = { p10: 3, p11: 4 };
+    else if (S.toGo <= 3) w = { p12: 3, p21: 2, p13: 1, p11: 2, jumbo: .5 };
+    else if (S.toGo >= 8) w = { p10: 3, p11: 5, p12: 1 };
+    else w = { p11: 5, p12: 2, p21: 1, p10: 1, p13: .7 };
+    // Send out the personnel that matches up best with the packages this defense has been using here
+    const dp = scoutOf(1 - S.poss).dp, b = scoutBucket();
+    Object.keys(w).forEach(pk => {
+      const t = tendency(dp, [[b + "|" + pk, 1], [b, .4]]); if (!t) return;
+      let e = 0;
+      for (const d in t.f) { const cl = ((CLASH[pk] || {})[d]) || { run: 0, pass: 0 }; e += t.f[d] * Math.max(cl.run, cl.pass); }
+      w[pk] *= clamp(Math.exp(.6 * t.conf * e), .3, 4);
+    });
+    return wpick(w);
   }
   function cpuDefPkg() {
     const w = ({ p10: { dime: 3, nickel: 3, base: .3 }, p11: { nickel: 5, base: 1.5, dime: 1 }, p12: { base: 4, nickel: 2 },
@@ -1394,6 +1455,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.toGo >= 8) { x.dime += 2; x.nickel += 1; x.goal = 0; }
     if (S.spot >= 95 || S.twoPt) x.goal += 2;
     if (S.toGo <= 1) x.goal += 1.5;
+    // Match the package to what this offense actually runs from this personnel, not just the down and distance
+    const t = !isST(S.offPkg) && offTend();
+    if (t) Object.keys(x).forEach(pk => {
+      let e = 0;
+      for (const p in t.f) e += t.f[p] * pkgEdge(p, S.offPkg, pk);
+      x[pk] = (x[pk] + .2) * adaptMul(-t.conf * e);
+    });
     return wpick(x);
   }
   // Scale play weights by how well each play suits the chosen package
@@ -1439,7 +1507,23 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     fitWeights(w);
     // Lean on the run: tuned so the computer runs on about 40% of its play calls
     w.ir *= RUN_BIAS; w.or *= RUN_BIAS; w.dr *= RUN_BIAS;
-    return wpick(w);
+    // Attack the defense's habits: its usual calls here, and the packages it sends out against this personnel
+    const sc = scoutOf(1 - S.poss), b = scoutBucket();
+    const td = tendency(sc.d, [[b, 1], ["*", .3]]), tp = tendency(sc.dp, [[b + "|" + S.offPkg, 1], [b, .4]]);
+    const mul = {};
+    Object.keys(w).forEach(k => {
+      if (!M[k]) return;
+      let e = 0;
+      if (td) for (const d in td.f) e += td.conf * td.f[d] * M[k][d];
+      if (tp) for (const pk in tp.f) e += tp.conf * tp.f[pk] * clashFor(k, S.offPkg, pk);
+      w[k] *= (mul[k] = adaptMul(e));
+    });
+    const call = wpick(w);
+    if (td && mul[call] >= 2) {
+      const top = topOf(td.f);
+      if (td.f[top] >= .45 && M[call][top] >= 1) S.scoutNote = { side: "off", text: `Their offense has noticed you play ${DEFP[top].name} a lot on ${BUCKET_TEXT[b]}, and called ${OFFP[call].name} to beat it.` };
+    }
+    return call;
   }
   // Computer offenses work the sideline when they need to stop the clock
   function cpuSide(id) {
@@ -1465,7 +1549,19 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (hailOK() && S.clock <= 8 && !fgAvailable()) { w.pr += 6; w.zo += 1; }
     // Sit on the sideline when the offense needs to stop the clock
     if (sidelineOK() && S.teams[S.poss].score <= S.teams[1 - S.poss].score && (S.quarter >= 4 || S.quarter === 2)) w.zo += 1.5;
-    return wpick(w);
+    // Take away what this offense keeps running in this situation
+    const t = !isST(S.offPkg) && offTend(), mul = {};
+    if (t) DEF_IDS.forEach(d => {
+      let e = 0;
+      for (const p in t.f) e += t.f[p] * (M[p][d] || 0);
+      w[d] = (w[d] + .15) * (mul[d] = adaptMul(-t.conf * e));
+    });
+    const call = wpick(w);
+    if (t && mul[call] >= 2) {
+      const top = topOf(t.f);
+      if (t.f[top] >= .45 && (M[top][call] || 0) <= -1) S.scoutNote = { side: "def", text: `The defense has seen a lot of ${OFFP[top].name} from you on ${BUCKET_TEXT[scoutBucket()]}, and called ${DEFP[call].name} to stop it.` };
+    }
+    return call;
   }
   function cpuPAT() {
     const t = S.patTeam, diff = S.teams[t].score - S.teams[1 - t].score;
