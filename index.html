@@ -1,5 +1,7 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Gridiron Duel</title>
+<meta name="description" content="Gridiron Duel: a turn-based football coordinator game. Call plays against a friend online or the computer. Screen reader friendly.">
+<meta name="theme-color" content="#faf9f5">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@400;500&display=swap">
@@ -227,6 +229,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 .resmain { display: grid; gap: 14px; }
 .hlist { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; line-height: 1.35; }
 .panel h3 { font-size: 22px; text-transform: uppercase; }
+.help h2 { font-size: 26px; text-transform: uppercase; }
 [data-focus]:focus, h1[tabindex]:focus, h2[tabindex]:focus { outline: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 
@@ -240,6 +243,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="site-config.js"></script>
 
 <script>
 (function () {
@@ -2182,6 +2186,58 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       </section>`;
   }
 
+  /* ---------- How to play ---------- */
+  let helpOpen = false;
+  function vHelp() {
+    const sec = (h, body) => `<section class="panel help"><h2>${h}</h2>${body}</section>`;
+    const ul = items => `<ul class="hlist">${items.map(x => `<li>${x}</li>`).join("")}</ul>`;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Gridiron Duel</p>
+        <h1>How to <em>play</em></h1>
+        <p class="muted">You're a coordinator. Each snap, both sides call a play in secret, then the play runs. Read your opponent, beat their call, win the game.</p>
+      </div>
+      ${sec("A snap, step by step", `<ol class="steps">
+          <li>The offense picks its personnel (who's on the field) and a play, then locks it in.</li>
+          <li>The defense sees the offense's personnel, but not the play. It picks a package and a call, and decides whether to show its real look or disguise it.</li>
+          <li>The offense sees the defense's look at the line and can audible to a different play once.</li>
+          <li>The play runs. The result screen shows both calls, what happened, and who won the snap.</li>
+        </ol>`)}
+      ${sec("Winning the call", ul([
+        "Every play has calls it beats and calls that beat it. Inside Run gashes Cover 2 but runs into a Run Blitz; Deep Shot burns Man Coverage but dies against Prevent.",
+        "Personnel matters too. Heavy sets run better, spread sets throw better, and each package matches up differently against Base, Nickel, Dime and Goal Line.",
+        "Play cards say when a play is a good or poor fit for your personnel, and when it's a strength or weakness of your team's style.",
+        "A good call makes a good result more likely, never certain. Dice still roll."
+      ]))}
+      ${sec("Audibles and disguises", ul([
+        "At the line, the offense sees a look like \"Eight in the box\" or \"Two high safeties,\" each with a hint about which call it usually means.",
+        "Defenses can disguise: line up in a different look and rotate late. A good fake baits a bad audible, but the late rotation leaves the defense a step slow, a small edge for the offense.",
+        "Changing the play at the line adds a small risk of a false start or delay of game."
+      ]))}
+      ${sec("Team styles", ul([
+        "Each team has an offensive style (Balanced, Air Raid, Ground &amp; Pound, West Coast) and a defensive style (Balanced, Blitz-Happy, No-Fly Zone, Run Stuffers).",
+        "Styles make some calls a little stronger and others a little weaker. Lean on your strengths, and attack the other team's weak spots.",
+        "Balanced has no weak spots, just a small edge everywhere."
+      ]))}
+      ${sec("Clock and situations", ul([
+        "After most plays the clock runs about 35 seconds before the next snap. Incompletions, scores, turnovers and timeouts stop it.",
+        "Late in a half: use timeouts, spike the ball, go no huddle (faster snaps, but nobody can change personnel), or run a play to the sideline to stop the clock.",
+        "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
+        "Leading late with the other team out of timeouts, you can kneel to run out the clock. Trailing late, you can try an onside kick."
+      ]))}
+      ${sec("Ways to play", ul([
+        "Play vs. Computer: you coach the home team. Pick the computer's difficulty: Rookie is loose and a step slow, Pro charts your tendencies, All-Pro learns your habits fast and counters hard.",
+        "Play a friend online: create a game and send the invite, or type your friend's 4-letter code and tap Join. Each of you plays on your own device.",
+        "One phone: set up both teams and pass the phone between calls. Neither call shows until both are locked in."
+      ]))}
+      ${sec("Tips", ul([
+        "Check the halftime scouting report. It shows each side's habits by down and distance and what beats them, and the computer has been reading yours.",
+        "Mix it up. The Pro and All-Pro computers chart what you call in each situation and start calling the counter.",
+        "Open the play-by-play and box score at the bottom of any screen to look back at the game.",
+        "With VoiceOver, each new screen starts at its heading or the play result. Swipe right to hear the rest."
+      ]))}
+      <button class="btn" data-a="help">Back to the game</button>`;
+  }
   /* ---------- Halftime report ---------- */
   const BUCKET_HEAD = { s: "Short yardage (3 or less to go)", m: "Medium (4 to 7 to go)", l: "Long (8 or more to go)" };
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
@@ -2311,13 +2367,16 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     let view = views[S.phase] || vSetup;
     // Online: when it's the other coach's decision, show a waiting screen instead of their call sheet
     if (NET.live && WAIT_PHASES.has(S.phase) && actor() !== NET.me) view = vWait;
+    if (helpOpen) view = vHelp;
     const on = !Sound.muted();
     const icon = on
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
-    const top = `<div class="topbar"><button class="soundbtn" data-a="mute" aria-pressed="${on}">${icon}Sound ${on ? "on" : "off"}</button></div>`;
+    const top = `<div class="topbar"><button class="soundbtn" data-a="help" aria-expanded="${helpOpen}">${helpOpen ? "Back to the game" : "How to play"}</button><button class="soundbtn" data-a="mute" aria-pressed="${on}">${icon}Sound ${on ? "on" : "off"}</button></div>`;
     const key = screenKey(view), prev = focusSig(app);
-    app.innerHTML = top + view() + vExtras();
+    const offline = NET.ref && NET.everConnected && NET.connected === false
+      ? `<p class="banner" role="status">Connection lost. Trying to reconnect. The game picks up where it left off once you're back online.</p>` : "";
+    app.innerHTML = top + offline + view() + (helpOpen ? "" : vExtras());
     placeFocus(app, key, prev);
   }
   /* ---------- Screen reader support ---------- */
@@ -2661,10 +2720,36 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!NET.db) {
       const app = firebase.apps && firebase.apps.length ? firebase.app() : firebase.initializeApp(fbCfg());
       NET.db = app.database();
+      // Watch the connection so a dropped signal mid-game shows up on screen instead of looking frozen
+      NET.db.ref(".info/connected").on("value", snap => {
+        const c = !!snap.val(), was = NET.connected;
+        NET.connected = c;
+        if (c) NET.everConnected = true;
+        if (!NET.everConnected || was === c || !NET.ref) return;
+        render();
+        announce(c ? "Reconnected." : "Connection lost. Trying to reconnect.");
+      });
     }
     return NET.db;
   }
   const inviteLink = code => (typeof location !== "undefined" ? location.origin + location.pathname : "") + "?g=" + code;
+  // On itch.io the game runs in a frame on another domain, so a ?g= link would skip the itch page and
+  // the code in it never reaches the game. There, invites point to the itch page and carry the code.
+  function onItch() {
+    try { return /(^|\.)itch\.(zone|io)$/i.test(location.hostname) || /^https:\/\/[^/]+\.itch\.io\//i.test(document.referrer || ""); } catch (e) { return false; }
+  }
+  function itchPage() {
+    const cfg = (typeof window !== "undefined" && window.SITE) || {};
+    if (cfg.itchUrl) return cfg.itchUrl;
+    try { const m = (document.referrer || "").match(/^https:\/\/[a-z0-9-]+\.itch\.io\/[a-z0-9-]+/i); if (m) return m[0]; } catch (e) {}
+    return null;
+  }
+  function invite(code) {
+    if (!onItch()) return { url: inviteLink(code), text: `Play Gridiron Duel with me. Game code ${code}`, show: inviteLink(code) };
+    const page = itchPage();
+    const text = `Play Gridiron Duel with me: open ${page || "Gridiron Duel on itch.io"}, then type game code ${code} and tap Join.`;
+    return { url: page, text, show: text };
+  }
   function setUrl(code) {
     try { history.replaceState(null, "", code ? "?g=" + code : location.pathname); } catch (e) {}
   }
@@ -2804,7 +2889,18 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       NET.code = NET.lastCode = code; NET.ref = ref;
       ref.on("value", onValue);
       setUrl(code);
+      sweepStale();
     });
+  }
+  // Housekeeping: delete a few games nobody has touched in over a week. The database rules allow
+  // deleting a game only once it is that old, so this can never remove a game in progress.
+  const STALE_MS = 8 * 24 * 3600 * 1000; // a day past the rules' 7-day line, in case this phone's clock is off
+  function sweepStale() {
+    try {
+      netDb().ref("games").orderByChild("t").endAt(Date.now() - STALE_MS).limitToFirst(20).once("value")
+        .then(snap => { snap.forEach(c => { c.ref.remove().catch(() => {}); }); })
+        .catch(() => {});
+    } catch (e) {}
   }
   function netJoin() {
     const ref = NET.ref; if (!ref || S.phase !== "netjoin") return;
@@ -2831,9 +2927,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "netcode": { const el = typeof document !== "undefined" && document.getElementById("joincode"); netConnect(el ? el.value : ""); return; }
       case "netjoin": netJoin(); return;
       case "netshare": {
-        const url = inviteLink(NET.code), text = `Play Gridiron Duel with me. Game code ${NET.code}`;
-        if (typeof navigator !== "undefined" && navigator.share) { navigator.share({ title: "Gridiron Duel", text, url }).catch(() => {}); return; }
-        try { navigator.clipboard.writeText(url).then(() => { NET.copied = true; render(); announce("Invite link copied."); }); } catch (e) {}
+        const inv = invite(NET.code);
+        if (typeof navigator !== "undefined" && navigator.share) { navigator.share(Object.assign({ title: "Gridiron Duel", text: inv.text }, inv.url ? { url: inv.url } : {})).catch(() => {}); return; }
+        try { navigator.clipboard.writeText(onItch() ? inv.text : inv.url).then(() => { NET.copied = true; render(); announce("Invite copied."); }); } catch (e) {}
         return;
       }
       case "netback": case "netleave": {
@@ -2896,9 +2992,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       <section class="panel">
         <p class="eyebrow">Game code</p>
         <div class="bigcode">${esc(code)}</div>
-        <p>Send your friend the invite link. They'll pick their team and join, then you kick off.</p>
-        <button class="btn" data-a="netshare">${NET.copied ? "Link copied" : "Send invite link"}</button>
-        <p class="linkline">${esc(inviteLink(code))}</p>
+        <p>Send your friend the invite${onItch() ? ", or just tell them the code" : " link"}. They'll pick their team and join, then you kick off.</p>
+        <button class="btn" data-a="netshare">${NET.copied ? "Invite copied" : "Send invite"}</button>
+        <p class="linkline">${esc(invite(code).show)}</p>
       </section>${vs}`;
     else if (me === 0) body = `${vs}
       <section class="panel"><p><b>${esc(g.name)}</b> are in. ${S.draft.ot ? "Overtime mode" : esc(qlenLabel(S.draft.qLen)) + " quarters"}, audibles ${S.draft.aud !== false ? "on" : "off"}.</p>
@@ -2954,6 +3050,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function act(a, ds) {
     const pre = preSnap(a);
     if (a === "mute") { Sound.toggle(); render(); return; }
+    // The help screen sits on top of whatever is going on; it never touches the game itself
+    if (a === "help") { helpOpen = !helpOpen; render(); if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0); return; }
     if (a.startsWith("net")) { netAct(a); return; }
     if (NET.live && !netCan(a, ds)) return;
     const online = NET.live ? S.online : null;
