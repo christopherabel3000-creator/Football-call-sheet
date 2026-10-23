@@ -8,6 +8,8 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 **One phone:** set up both teams on the start screen and pass the phone between calls. Either team can be coached by the computer.
 
+The **How to play** button at the top of every screen explains the rules without leaving the game.
+
 ## What's in the game
 
 - Offensive and defensive playbooks with matchup edges
@@ -26,4 +28,13 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoever makes a decision runs the play on their own phone and saves the new state; the other phone picks it up and redraws. A save only goes through if nobody else saved first, so the two phones always agree.
 
 - `firebase-config.js` holds the Firebase project settings (not secret).
-- `database.rules.json` holds the database security rules to paste into the Firebase console.
+- `database.rules.json` holds the database security rules to paste into the Firebase console (Realtime Database → Rules → Publish). They only accept well-formed game saves, require each save to be exactly one version newer than the last (so nobody can rewind or wipe a game), and only allow deleting games nobody has touched in 7 days.
+- Each time someone creates a game, their phone also deletes up to 20 games that have sat untouched for over a week, so old games don't pile up.
+- If a phone loses its connection mid-game, a banner says so, and the game picks up again when it reconnects.
+
+## Publishing on itch.io
+
+1. Zip `index.html`, `firebase-config.js` and `site-config.js` (no folder inside the zip).
+2. On itch.io, create a new project, set **Kind of project** to **HTML**, upload the zip and tick **This file will be played in the browser**.
+3. Set the embed size to about 420 × 860 and turn on **Mobile friendly** and **Fullscreen button**.
+4. Once the page has its address, put it in `site-config.js` as `itchUrl` and upload a fresh zip. Online invites from the itch version then point to that page and include the game code (on itch, friends join by typing the code).
