@@ -217,10 +217,22 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 .soundbtn svg { width: 16px; height: 16px; }
 .soundbtn[aria-pressed="false"] { color: var(--muted); }
 
+.seg.stylepick { display: grid; grid-template-columns: 1fr 1fr; }
+.seg.stylepick button { border-left: 0; border-top: 1.5px solid var(--line); font-size: 14px; padding: 9px 6px; }
+.seg.stylepick button:nth-child(-n+2) { border-top: 0; }
+.seg.stylepick button:nth-child(even) { border-left: 1.5px solid var(--line); }
+.seg.stylepick button:last-child { grid-column: 1 / -1; }
+.styledesc { font-size: 14px; line-height: 1.35; }
+.idline { font-size: 14px; }
+.resmain { display: grid; gap: 14px; }
+[data-focus]:focus, h1[tabindex]:focus, h2[tabindex]:focus { outline: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
 @media (prefers-reduced-motion: reduce) { .headline { animation: none; } .ball { transition: none; } }
 </style>
 
 <div class="wrap" id="app"></div>
+<div id="sr" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Online play: Firebase Realtime Database. The project's settings live in firebase-config.js. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -358,7 +370,48 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const fit = (PKG_FIT[opk] || {})[off] || 0, cl = ((CLASH[opk] || {})[dpk]) || { run: 0, pass: 0 };
     return fit + (OFFP[off].kind === "run" ? cl.run : cl.pass);
   }
+  /* ---------- Team identities ---------- */
+  // Each team has an offensive and a defensive style. A style nudges the matchup edge (the same scale
+  // as the play-call table, where 1 is a clearly better call), so it tilts snaps without deciding them.
+  // Balanced has a small edge everywhere; the others trade weak spots for bigger strengths.
+  const OFF_STYLE_IDS = ["bal", "air", "gnp", "wc"];
+  const DEF_STYLE_IDS = ["bal", "blz", "nfz", "rs"];
+  const OFF_STYLES = {
+    bal: { name: "Balanced", short: "Balanced", desc: "No weak spots. A small edge on every play.", all: .1 },
+    air: { name: "Air Raid", short: "Air Raid", desc: "Spread it out and throw. Quick Game, Mesh and Deep Shot are strengths. The run game is thin.", plays: { sp: .5, ms: .5, dp: .5, hm: .3, ir: -.6, or: -.5, qs: -.4 } },
+    gnp: { name: "Ground & Pound", short: "Ground & Pound", desc: "Run the ball and set up play-action. Quick throws and the deep ball are weaker.", plays: { ir: .4, or: .4, dr: .3, qs: .4, pa: .4, sc: -.3, sp: -.5, ms: -.5, dp: -.6, hm: -.3 } },
+    wc: { name: "West Coast", short: "West Coast", desc: "Short, timed throws. Screens, Quick Game and Mesh are strengths. The deep ball is not.", plays: { sc: .8, sp: .8, ms: .8, dp: -.4 } }
+  };
+  // Defensive styles: an edge for the defense on some calls (calls) or against some kinds of plays (run, pass, deep)
+  const DEF_STYLES = {
+    bal: { name: "Balanced", short: "Balanced", desc: "No weak spots. A small edge on every snap.", all: .1 },
+    blz: { name: "Blitz-Happy", short: "Blitz-Happy", desc: "Bring pressure. Run Blitz, All-Out Blitz and Zone Blitz hit harder. The zone coverages are softer.", calls: { ab: .7, zb: .7, rb: .5, zo: -.2, c3: -.2, pr: -.3 } },
+    nfz: { name: "No-Fly Zone", short: "No-Fly Zone", desc: "Lockdown secondary. Tougher against every pass, softer against the run.", pass: .6, run: -.45 },
+    rs: { name: "Run Stuffers", short: "Run Stuffers", desc: "A wall up front. Tougher against every run, but deep passes can get over the top.", run: .9, deep: -.4 }
+  };
+  const RANDOM_STYLE = "rnd";
+  const offStyleOf = t => (S && S.teams && S.teams[t] && OFF_STYLES[S.teams[t].off]) ? S.teams[t].off : "bal";
+  const defStyleOf = t => (S && S.teams && S.teams[t] && DEF_STYLES[S.teams[t].def]) ? S.teams[t].def : "bal";
+  // Offensive style edge for a play
+  function offStyleEdge(off, s) { const st = OFF_STYLES[s] || OFF_STYLES.bal; return (st.all || 0) + ((st.plays || {})[off] || 0); }
+  // Defensive style edge (in the defense's favor) for a call against a play
+  function defStyleEdge(off, def, s) {
+    const st = DEF_STYLES[s] || DEF_STYLES.bal, P = OFFP[off];
+    if (!P) return 0;
+    return (st.all || 0) + ((st.calls || {})[def] || 0) + (P.kind === "run" ? st.run || 0 : st.pass || 0) + (P.deep ? st.deep || 0 : 0);
+  }
+  // Net edge for the offense team o: its offensive style minus the other team's defensive style
+  const styleParts = (off, def, o) => ({ off: offStyleEdge(off, offStyleOf(o)), def: defStyleEdge(off, def, defStyleOf(1 - o)) });
+  const styleEdge = (off, def, o) => { const p = styleParts(off, def, o); return p.off - p.def; };
+  const resolveStyle = (v, ids) => v === RANDOM_STYLE ? ids[Math.floor(rand() * ids.length)] : ids.includes(v) ? v : "bal";
+  function styleTag(isOff, id, t) {
+    if (isOff) { const st = OFF_STYLES[offStyleOf(t)], v = (st.plays || {})[id] || 0; return v >= .4 ? " · style strength" : v <= -.4 ? " · style weakness" : ""; }
+    const v = ((DEF_STYLES[defStyleOf(t)].calls) || {})[id] || 0;
+    return v >= .4 ? " · style strength" : v <= -.3 ? " · style weakness" : "";
+  }
+  const identityText = t => `${OFF_STYLES[offStyleOf(t)].name} offense, ${DEF_STYLES[defStyleOf(t)].name} defense`;
   const COLORS = ["#A3242F", "#22407D", "#C95A17", "#5A3990", "#167370", "#A87C0E", "#2F6A35", "#2B2B2B"];
+  const COLOR_NAMES = { "#A3242F": "Crimson", "#22407D": "Navy", "#C95A17": "Orange", "#5A3990": "Purple", "#167370": "Teal", "#A87C0E": "Gold", "#2F6A35": "Green", "#2B2B2B": "Black" };
   const QLENS = [{ s: 240, l: "Quick", d: "4-min quarters" }, { s: 480, l: "Standard", d: "8-min" }, { s: 900, l: "Full", d: "15-min" }, { s: 900, ot: true, l: "Overtime", d: "15-min OT" }];
 
   /* ---------- Helpers ---------- */
@@ -406,11 +459,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
   /* ---------- Game flow ---------- */
   function defaultDraft() {
-    return { t: [{ name: "Home", color: COLORS[0], cpu: false }, { name: "Visitors", color: COLORS[1], cpu: false }], qLen: 240, aud: true };
+    return { t: [{ name: "Home", color: COLORS[0], cpu: false, off: "bal", def: "bal" }, { name: "Visitors", color: COLORS[1], cpu: false, off: "bal", def: "bal" }], qLen: 240, aud: true };
   }
   function mkTeam(c, otherAbbr) {
     const nm = (c.name || "").trim() || "Team";
-    return { name: nm, abbr: makeAbbr(nm, otherAbbr), color: c.color, cpu: !!c.cpu, score: 0, st: { plays: 0, yds: 0, rush: 0, pass: 0, fd: 0, to: 0, pen: 0, penYds: 0 } };
+    return { name: nm, abbr: makeAbbr(nm, otherAbbr), color: c.color, cpu: !!c.cpu, off: resolveStyle(c.off, OFF_STYLE_IDS), def: resolveStyle(c.def, DEF_STYLE_IDS), score: 0, st: { plays: 0, yds: 0, rush: 0, pass: 0, fd: 0, to: 0, pen: 0, penYds: 0 } };
   }
   function initGame(cfg) {
     const t0 = mkTeam(cfg.t[0]);
@@ -421,9 +474,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       needPAT: false, patTeam: 0, periodOver: false, gameOver: false,
       tos: [3, 3], clockRunning: false, oobRestart: false, spikeNext: false, toNote: "" };
     if (cfg.ot) { S.quarter = 4; S.clock = 0; startOT("Overtime mode: tied 0-0 after regulation."); } // straight into OT rules
-    else startToss(false, "");
+    else startToss(false, matchupLine());
     tossNext();
   }
+  const matchupLine = () => `${name(1)} (${identityText(1)}) at ${name(0)} (${identityText(0)}).`;
   function startDrive(team, spot) { if (team !== S.poss) otTurn(team); S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
   // Kickoff: touchbacks to the 35, most kicks returned
   function kickoff(rcv, allowTD) {
@@ -663,7 +717,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const shown = fake ? DEF_IDS.filter(x => x !== d)[ri(0, DEF_IDS.length - 2)] : d;
     return { d: shown, fake };
   }
-  const edgeVs = (off, def) => clamp(M[off][def] + pkgEdge(off, S.offPkg, S.defPkg), -3, 3);
+  const edgeVs = (off, def) => clamp(M[off][def] + pkgEdge(off, S.offPkg, S.defPkg) + styleEdge(off, def, S.poss), -3, 3);
   // Both calls are in: the offense gets one look at the defense before the snap
   function afterDef() {
     if (!audiblesOn() || !OFFP[S.offCall]) { resolve(); return; }
@@ -851,6 +905,19 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const v = verdictCalls(r, snap), pe = r.pe || 0;
     if (Math.abs(pe) >= 1 && OFF_PKGS[r.opk] && DEF_PKGS[r.dpk])
       v.t += ` ${OFF_PKGS[r.opk].name} against ${DEF_PKGS[r.dpk].name} ${pe > 0 ? "gave the offense an edge" : "favored the defense"}.`;
+    // Explain the snap with the team identities when a style strength or weak spot pointed the same way as the result
+    const sp = r.sp, o = r.team;
+    // (Not every time, so the note stays worth reading.)
+    if (sp && S.teams && o != null && rand() < .6) {
+      const dsId = defStyleOf(1 - o), os = OFF_STYLES[offStyleOf(o)], ds = DEF_STYLES[dsId], on = OFFP[r.offId].name, dn = DEFP[r.defId] ? DEFP[r.defId].name : "";
+      const run = OFFP[r.offId].kind === "run";
+      const defStrong = dsId === "nfz" ? `Throwing on the ${ds.name} secondary is tough.` : dsId === "rs" ? `The ${ds.name} front is built to stop the run.` : `The ${ds.name} defense is built for ${dn}.`;
+      const defSoft = dsId === "nfz" ? `Runs are the soft spot in a ${ds.name} defense.` : dsId === "rs" ? `Deep throws are the soft spot in a ${ds.name} defense.` : `${dn} is a soft spot for a ${ds.name} defense.`;
+      if (v.c === "o" && sp.off >= .4) v.t += ` ${on} is a strength of the ${os.name} offense.`;
+      else if (v.c === "d" && sp.def >= .4) v.t += " " + defStrong;
+      else if (v.c === "d" && sp.off <= -.4) v.t += ` ${on} is a weak spot for the ${os.name} offense.`;
+      else if (v.c === "o" && sp.def <= -.3 && (dsId !== "nfz" || run)) v.t += " " + defSoft;
+    }
     return v;
   }
   function verdictCalls(r, snap) {
@@ -869,7 +936,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // The dice for one snap: yards, and whether it was a sack, interception, incompletion or fumble
   function rollPlay(off, def, opk, dpk, side) {
     opk = opk || "p11"; dpk = dpk || "nickel"; side = !!side && sideOn(off);
-    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), m = clamp(M[off][def] + pe + (side ? SIDE_EDGE[off][def] || 0 : 0), -3, 3);
+    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), se = styleEdge(off, def, S.poss), m = clamp(M[off][def] + pe + se + (side ? SIDE_EDGE[off][def] || 0 : 0), -3, 3);
     const OP = OFF_PKGS[opk] || {}, compMul = (OP.comp || {})[off] || 1;
     let y = 0, time = 0, fumble = false, int = false, sack = false, inc = false, oob = false;
     if (P.kind === "run") {
@@ -910,7 +977,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         } else { inc = true; time = ri(4, 7); }
       }
     }
-    return { y, time, fumble, int, sack, inc, oob, m, pe };
+    return { y, time, fumble, int, sack, inc, oob, m, pe, se };
   }
   function doScrimmage() {
     const o = S.poss, d = 1 - o, off = S.offCall, def = S.defCall, P = OFFP[off];
@@ -919,7 +986,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     st.plays++;
     const r = { read: null, m, fromX: fx(o, from), tone: "", sub: "" };
     let { y, time, fumble, int, sack, inc, oob } = roll, text = "";
-    Object.assign(r, { mc: M[off][def], pe: roll.pe, opk: S.offPkg, dpk: S.defPkg, side: !!S.offSide && sideOn(off) });
+    Object.assign(r, { mc: M[off][def], pe: roll.pe, sp: styleParts(off, def, o), opk: S.offPkg, dpk: S.defPkg, side: !!S.offSide && sideOn(off) });
     tick(time);
     r.oob = oob;
 
@@ -1428,6 +1495,31 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 
   /* ---------- Computer coordinator ---------- */
   const RUN_BIAS = 3.3;
+  // Team identity: the computer leans into its own style and away from what the other side's style does well
+  const STYLE_LEAN = 1.1, STYLE_COUNTER = .6;
+  function mixOf(ids, f) { const w = {}; let n = 0; ids.forEach(id => { w[id] = Math.exp(STYLE_LEAN * f(id)); n += w[id]; }); for (const id in w) w[id] /= n; return w; }
+  // How a defense with this style tends to call it, and how an offense with this style tends to call it
+  const defStyleMix = s => mixOf(DEF_IDS, d => ((DEF_STYLES[s] || DEF_STYLES.bal).calls || {})[d] || 0);
+  const offStyleMix = s => mixOf(OFF_IDS, p => offStyleEdge(p, s));
+  function cpuOffStyle(w) {
+    const me = S.poss, os = offStyleOf(me), ds = defStyleOf(1 - me), mx = defStyleMix(ds), mx0 = defStyleMix("bal");
+    Object.keys(w).forEach(k => {
+      if (!M[k]) return;
+      let e = 0, e0 = 0;
+      for (const d in mx) e += mx[d] * (M[k][d] - defStyleEdge(k, d, ds));
+      for (const d in mx0) e0 += mx0[d] * (M[k][d] - defStyleEdge(k, d, "bal"));
+      w[k] *= clamp(Math.exp(STYLE_LEAN * (offStyleEdge(k, os) - offStyleEdge(k, "bal")) + STYLE_COUNTER * (e - e0)), .3, 3);
+    });
+  }
+  function cpuDefStyle(w) {
+    const ds = defStyleOf(1 - S.poss), os = offStyleOf(S.poss), q = offStyleMix(os), q0 = offStyleMix("bal");
+    DEF_IDS.forEach(d => {
+      let e = 0, e0 = 0;
+      for (const p in q) e += q[p] * M[p][d];
+      for (const p in q0) e0 += q0[p] * M[p][d];
+      w[d] *= clamp(Math.exp(STYLE_LEAN * (((DEF_STYLES[ds].calls) || {})[d] || 0) - STYLE_COUNTER * (e - e0)), .3, 3);
+    });
+  }
   function cpuOffPkg() {
     const diff = S.teams[S.poss].score - S.teams[1 - S.poss].score, late = S.quarter >= 4 && S.clock <= 180;
     let w;
@@ -1505,6 +1597,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.spot >= 88) { w.dp = .3; w.ir += 1; w.ms += 1; }
     if (late && diff < 0) { w.ir = .5; w.or = .5; w.dr = .2; w.dp += 2; w.sp += 1; w.ms += 1; }
     fitWeights(w);
+    cpuOffStyle(w);
     // Lean on the run: tuned so the computer runs on about 40% of its play calls
     w.ir *= RUN_BIAS; w.or *= RUN_BIAS; w.dr *= RUN_BIAS;
     // Attack the defense's habits: its usual calls here, and the packages it sends out against this personnel
@@ -1549,6 +1642,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (hailOK() && S.clock <= 8 && !fgAvailable()) { w.pr += 6; w.zo += 1; }
     // Sit on the sideline when the offense needs to stop the clock
     if (sidelineOK() && S.teams[S.poss].score <= S.teams[1 - S.poss].score && (S.quarter >= 4 || S.quarter === 2)) w.zo += 1.5;
+    cpuDefStyle(w);
     // Take away what this offense keeps running in this situation
     const t = !isST(S.offPkg) && offTend(), mul = {};
     if (t) DEF_IDS.forEach(d => {
@@ -1576,18 +1670,32 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function board() {
     const t = S.teams, inGame = S.phase !== "final", tossing = S.phase === "toss";
     const team = i => `
-      <div class="bteam ${i ? "right" : ""}" style="--team:${t[i].color}">
+      <div class="bteam ${i ? "right" : ""}" style="--team:${t[i].color}" aria-hidden="true">
         <span class="stripe"></span>
         <div class="id"><span class="abbr">${inGame && !tossing && S.poss === i ? '<span class="ballmark" title="Has the ball"></span>' : ""}${esc(t[i].abbr)}</span><span class="full">${esc(t[i].name)}</span>${inGame && S.tos ? `<span class="tos" aria-label="${S.tos[i]} timeouts left">${[0, 1, 2].map(k => `<i class="${k < S.tos[i] ? "on" : ""}"></i>`).join("")}</span>` : ""}</div>
         <span class="pts">${t[i].score}</span>
       </div>`;
     return `<header class="board" aria-label="Scoreboard">
+      <p class="sr-only">${esc(boardSummary())}</p>
       ${team(0)}
-      <div class="bmid"><span class="q">${S.phase === "final" ? "FINAL" : qLabel(S.quarter)}</span><span class="clk">${fmtClock(S.clock)}</span></div>
+      <div class="bmid" aria-hidden="true"><span class="q">${S.phase === "final" ? "FINAL" : qLabel(S.quarter)}</span><span class="clk">${fmtClock(S.clock)}</span></div>
       ${team(1)}
-      ${tossing ? `<div class="sit"><b>${S.toss && S.toss.ot ? "Overtime coin toss" : "Coin toss"}</b><span>${S.toss && S.toss.ot ? `Tied ${S.teams[0].score}-${S.teams[1].score}` : "Opening kickoff"}</span></div>` : inGame ? `<div class="sit"><b>${S.twoPt && S.phase !== "result" ? "Two-point try" : downText()}</b><span>Ball on ${spotText(S.poss, S.spot)}</span></div>` : ""}
+      ${tossing ? `<div class="sit" aria-hidden="true"><b>${S.toss && S.toss.ot ? "Overtime coin toss" : "Coin toss"}</b><span>${S.toss && S.toss.ot ? `Tied ${S.teams[0].score}-${S.teams[1].score}` : "Opening kickoff"}</span></div>` : inGame ? `<div class="sit" aria-hidden="true"><b>${S.twoPt && S.phase !== "result" ? "Two-point try" : downText()}</b><span>Ball on ${spotText(S.poss, S.spot)}</span></div>` : ""}
     </header>`;
   }
+  // What the scoreboard says, as one sentence for screen readers
+  function boardSummary() {
+    const t = S.teams, sc = `${t[0].name} ${t[0].score}, ${t[1].name} ${t[1].score}.`;
+    if (S.phase === "final") return `Final. ${sc}`;
+    const per = S.quarter <= 4 ? `${ord(S.quarter)} quarter` : S.quarter === 5 ? "Overtime" : `Overtime ${S.quarter - 4}`;
+    let txt = `${sc} ${per}, ${fmtClock(S.clock)} left.`;
+    if (S.phase === "toss") return txt + (S.toss && S.toss.ot ? " Overtime coin toss." : " Coin toss.");
+    txt += ` ${t[S.poss].name} have the ball, ${S.twoPt && S.phase !== "result" ? "two-point try" : downText().replace("&", "and")}, ball on the ${spotText(S.poss, S.spot)}.`;
+    if (S.tos) txt += ` Timeouts: ${t[0].abbr} ${S.tos[0]}, ${t[1].abbr} ${S.tos[1]}.`;
+    return txt;
+  }
+  // A spot on the field (0 to 100, home team driving left to right) in words
+  const absSpot = x => x >= 100 ? `${abbr(1)} end zone` : x <= 0 ? `${abbr(0)} end zone` : spotText(0, Math.round(x));
   function field(opts) {
     const t = S.teams, pct = x => ((10 + clamp(x, -9, 109)) / 120 * 100).toFixed(2) + "%";
     let nums = "";
@@ -1597,7 +1705,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (opts.fd != null) marks += `<span class="mk fd" style="left:${pct(opts.fd)}"></span>`;
     if (opts.from != null) { const a = Math.min(opts.from, opts.ball), b = Math.max(opts.from, opts.ball); marks += `<span class="trail" style="left:${pct(a)};width:calc(${pct(b)} - ${pct(a)})"></span>`; }
     marks += `<span class="ball" style="left:${pct(opts.ball)}"></span>`;
-    return `<div class="field" role="img" aria-label="Field position">
+    const lbl = opts.label || (opts.from != null && opts.from !== opts.ball ? `Field. The play went from the ${absSpot(opts.from)} to the ${absSpot(opts.ball)}.` : `Field. Ball on the ${absSpot(opts.ball)}.`);
+    return `<div class="field" role="img" aria-label="${esc(lbl)}">
       <div class="turf"></div>
       <div class="ez l" style="--team:${t[0].color}"><span>${esc(t[0].abbr)}</span></div>
       <div class="ez r" style="--team:${t[1].color}"><span>${esc(t[1].abbr)}</span></div>
@@ -1606,8 +1715,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function liveField() {
     const x = fx(S.poss, S.spot), fd = fx(S.poss, Math.min(S.spot + S.toGo, 100));
-    return field({ ball: x, los: x, fd: S.spot + S.toGo >= 100 ? null : fd }) +
-      `<div class="legend"><span><i style="background:#3E8EEA"></i>Line of scrimmage</span>${S.spot + S.toGo >= 100 ? "" : '<span><i style="background:var(--firstdown)"></i>First-down line</span>'}<span>${esc(name(0))} drive left to right</span></div>`;
+    const lbl = `Field. Ball on the ${spotText(S.poss, S.spot)}${S.spot + S.toGo >= 100 ? ", goal to go" : `, first-down line at the ${spotText(S.poss, S.spot + S.toGo)}`}.`;
+    return field({ ball: x, los: x, fd: S.spot + S.toGo >= 100 ? null : fd, label: lbl }) +
+      `<div class="legend" aria-hidden="true"><span><i style="background:#3E8EEA"></i>Line of scrimmage</span>${S.spot + S.toGo >= 100 ? "" : '<span><i style="background:var(--firstdown)"></i>First-down line</span>'}<span>${esc(name(0))} drive left to right</span></div>`;
   }
   const bannerHtml = () => S.banner ? `<p class="banner">${esc(S.banner)}</p>` : "";
 
@@ -1619,13 +1729,23 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <div style="display:grid;gap:6px"><label for="t${i}name">${esc(label)}</label>
         <input type="text" id="t${i}name" data-t="${i}" maxlength="20" value="${esc(d.t[i].name)}" autocomplete="off"></div>
         <div style="display:grid;gap:6px"><label>Color</label><div class="swatches">
-          ${COLORS.filter(c => c !== o.taken).map(c => `<button class="sw" style="--c:${c}" data-a="color" data-t="${i}" data-c="${c}" aria-pressed="${d.t[i].color === c}" aria-label="Color ${c}"></button>`).join("")}
+          ${COLORS.filter(c => c !== o.taken).map(c => `<button class="sw" style="--c:${c}" data-a="color" data-t="${i}" data-c="${c}" aria-pressed="${d.t[i].color === c}" aria-label="${COLOR_NAMES[c] || "Color"}"></button>`).join("")}
         </div></div>
+        ${styleCfgHtml(d, i, true)}${styleCfgHtml(d, i, false)}
         ${o.noCtrl ? "" : `<div style="display:grid;gap:6px"><label>Coordinator</label><div class="seg">
           <button data-a="ctrl" data-t="${i}" data-v="0" aria-pressed="${!d.t[i].cpu}">Human</button>
           <button data-a="ctrl" data-t="${i}" data-v="1" aria-pressed="${d.t[i].cpu}">Computer</button>
         </div></div>`}
       </section>`;
+  }
+  // Offensive or defensive style picker for one team. "Surprise me" picks one at kickoff.
+  function styleCfgHtml(d, i, isOff) {
+    const ids = isOff ? OFF_STYLE_IDS : DEF_STYLE_IDS, book = isOff ? OFF_STYLES : DEF_STYLES, cur = d.t[i][isOff ? "off" : "def"] || "bal";
+    const a = isOff ? "ostyle" : "dstyle", lbl = isOff ? "Offensive style" : "Defensive style";
+    const btn = (v, txt) => `<button data-a="${a}" data-t="${i}" data-v="${v}" aria-pressed="${cur === v}">${txt}</button>`;
+    return `<div style="display:grid;gap:6px" role="group" aria-label="${lbl}"><span class="eyebrow" aria-hidden="true">${lbl}</span><div class="seg stylepick">
+          ${ids.map(id => btn(id, book[id].short)).join("")}${btn(RANDOM_STYLE, "Surprise me")}
+        </div><p class="muted styledesc">${cur === RANDOM_STYLE ? "A random style is picked at kickoff." : esc(book[cur].desc)}</p></div>`;
   }
   function gameOptsHtml(d) {
     return `<div style="display:grid;gap:6px"><span class="eyebrow">Game length</span><div class="seg">
@@ -1656,7 +1776,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
       <section class="panel">
         <div style="display:grid;gap:4px"><span class="eyebrow">Play the computer</span>
-        <p class="muted" style="font-size:15px">No friend needed. You coach the home team against a computer coordinator. Change names, colors and game length below.</p></div>
+        <p class="muted" style="font-size:15px">No friend needed. You coach the home team against a computer coordinator. Change names, colors, styles and game length below. Unless you pick the away team's styles, the computer gets a surprise identity.</p></div>
         <button class="btn" data-a="solo">Play vs. Computer</button>
       </section>
       <section class="panel">
@@ -1714,11 +1834,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function vLOS() {
     const o = S.poss, d = 1 - o, tm = S.teams[o], L = LOOKS[S.look.d], cur = OFFP[S.offCall];
     const card = id => `<button class="play" data-a="audpick" data-v="${id}" aria-pressed="${S.audSel === id}">
-        <span class="tag">${OFFP[id].tag + fitTagFor(S.offPkg, id)}</span><span class="nm">${OFFP[id].name}</span><span class="ds">${OFFP[id].desc}</span></button>`;
+        <span class="tag">${OFFP[id].tag + fitTagFor(S.offPkg, id) + styleTag(true, id, o)}</span><span class="nm">${OFFP[id].name}</span><span class="ds">${OFFP[id].desc}</span></button>`;
     const to = S.audSel && OFFP[S.audSel];
     return `${board()}
       <div style="--team:${tm.color};display:grid;gap:14px">
-        <div class="callhead">
+        <div class="callhead" data-focus tabindex="-1">
           <p class="eyebrow">${esc(tm.name)} · At the line</p>
           <h2>Read the defense</h2>
           <p class="muted">${S.twoPt ? `Two-point try from the ${spotText(o, S.spot)}` : `${downText()} at the ${spotText(o, S.spot)}`}. You can audible once. Changing the play adds a small risk of a false start or delay of game${S.wasRunning ? " and burns a few seconds" : ""}.</p>
@@ -1744,7 +1864,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!choices.includes(pk)) pk = choices[0];
     const kickUnit = isOff && isST(pk);
     const ids = isOff ? (kickUnit ? [] : offIds(pk)) : DEF_IDS, book = isOff ? OFFP : DEFP;
-    const fitTag = id => isOff ? fitTagFor(pk, id) : "";
+    const fitTag = id => (isOff ? fitTagFor(pk, id) : "") + styleTag(isOff, id, t);
     const pkgBook = isOff ? { ...OFF_PKGS, ...ST_PKGS } : DEF_PKGS;
     const pkgBtn = id => `<button class="pkg${isST(id) ? " stpkg" : ""}" data-a="pkg" data-v="${id}" aria-pressed="${pk === id}">
         <span class="pn">${pkgBook[id].name}</span><span class="pw">${pkgBook[id].who}</span></button>`;
@@ -1787,10 +1907,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return `${board()}
       ${S.locked && !isOff && !bothHuman() ? "" : bannerHtml()}
       <div style="--team:${tm.color};display:grid;gap:14px">
-        <div class="callhead">
+        <div class="callhead" data-focus tabindex="-1">
           <p class="eyebrow">${esc(tm.name)} · ${isOff ? "Offense" : "Defense"}</p>
           <h2>${S.twoPt ? (isOff ? "Two-point play" : "Stop the two") : isOff ? "Call your play" : "Call your defense"}</h2>
           <p class="muted">${S.twoPt ? `Two-point try from the ${spotText(S.poss, S.spot)}` : `${downText()} at the ${spotText(S.poss, S.spot)}`}${isOff ? "" : `. ${esc(name(S.poss))} have the ball`}.</p>
+          <p class="muted idline">${isOff ? `Your ${OFF_STYLES[offStyleOf(t)].name} offense against their ${DEF_STYLES[defStyleOf(1 - t)].name} defense.` : `Your ${DEF_STYLES[defStyleOf(t)].name} defense against their ${OFF_STYLES[offStyleOf(1 - t)].name} offense.`}</p>
         </div>
         ${liveField()}
         ${theirPkg}
@@ -1839,11 +1960,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
           <div class="callchip" style="--team:${S.teams[o].color}"><div class="who">${esc(S.teams[o].abbr)} ${r.offId === "onside" || r.offId === "kickoff" ? "kickoff" : "offense"}</div><div class="nm">${offName}</div>${r.opk && OFF_PKGS[r.opk] && OFFP[r.offId] ? `<div class="pk">${OFF_PKGS[r.opk].name}</div>` : ""}${r.aud ? `<div class="pk">Audible from ${OFFP[r.aud.from].name}</div>` : ""}</div>
           ${defName ? `<div class="callchip" style="--team:${S.teams[d].color}"><div class="who">${esc(S.teams[d].abbr)} defense</div><div class="nm">${defName}</div>${r.dpk && DEF_PKGS[r.dpk] && OFFP[r.offId] ? `<div class="pk">${DEF_PKGS[r.dpk].name}</div>` : ""}</div>` : ""}
         </div>
-        <div class="headline ${r.tone}">${r.head}</div>
-        ${r.read ? `<span class="read ${r.read.c}"><i></i>${esc(r.read.t)}</span>` : ""}
+        <div class="resmain" data-focus tabindex="-1">
+        <h2 class="headline ${r.tone}">${r.head}</h2>
+        ${r.read ? `<span class="read ${r.read.c}"><i aria-hidden="true"></i>${esc(r.read.t)}</span>` : ""}
         <p class="narr">${esc(r.text)}</p>
         ${r.audNote ? `<p class="audnote">${esc(r.audNote)}</p>` : ""}
         ${r.sub ? `<p class="next">${esc(r.sub)}</p>` : ""}
+        </div>
         ${r.tmw ? `<p class="banner">Two-minute warning. The clock is stopped.</p>` : ""}
         ${clockBox()}
         ${field({ ball: r.toX, los: r.fromX, from: r.fromX })}
@@ -1981,7 +2104,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const t = S.teams;
     const rows = [["Total yards", "yds"], ["Rushing", "rush"], ["Passing", "pass"], ["First downs", "fd"], ["Turnovers", "to"], ["Penalties", "pen"], ["Plays", "plays"]];
     const cell = (st, k) => k === "pen" ? `${st.pen || 0}-${st.penYds || 0}` : st[k];
-    const box = `<details ${S.phase === "final" ? "open" : ""}><summary>Box score</summary><div class="tablewrap"><table>
+    const box = `<details ${S.phase === "final" ? "open" : ""}><summary>Box score</summary><p class="muted idline">${[0, 1].map(i => `${esc(t[i].abbr)}: ${identityText(i)}`).join("<br>")}</p><div class="tablewrap"><table>
       <thead><tr><th></th><th>${esc(t[0].abbr)}</th><th>${esc(t[1].abbr)}</th></tr></thead>
       <tbody>${rows.map(([l, k]) => `<tr><td>${l}</td><td>${cell(t[0].st, k)}</td><td>${cell(t[1].st, k)}</td></tr>`).join("")}</tbody></table></div></details>`;
     const log = S.log.length ? `<details><summary>Play-by-play</summary><ol class="log">${S.log.slice(0, 80).map(e => `
@@ -2007,7 +2130,47 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
     const top = `<div class="topbar"><button class="soundbtn" data-a="mute" aria-pressed="${on}">${icon}Sound ${on ? "on" : "off"}</button></div>`;
+    const key = screenKey(view), prev = focusSig(app);
     app.innerHTML = top + view() + vExtras();
+    placeFocus(app, key, prev);
+  }
+  /* ---------- Screen reader support ---------- */
+  // Every tap redraws the screen. A redraw that stays on the same screen (picking a play, toggling a
+  // setting) puts focus back on the same control. A redraw that lands on a new screen moves focus to
+  // that screen's heading or main block, so VoiceOver starts reading the new screen from the top.
+  let lastKey = null, srTimer = null;
+  function screenKey(view) {
+    return [view.name, S.phase, S.side, S.playId || 0, S.toss ? S.toss.step : "", S.pen ? S.pen.code : "", S.twoPt ? 1 : 0, S.locked ? 1 : 0].join("|");
+  }
+  function focusSig(app) {
+    const el = document.activeElement;
+    if (!el || el === document.body || !app.contains(el)) return null;
+    if (el.id) return { id: el.id };
+    const b = el.closest("[data-a]");
+    return b ? { a: b.dataset.a, v: b.dataset.v, t: b.dataset.t, c: b.dataset.c } : null;
+  }
+  function placeFocus(app, key, prev) {
+    const changed = lastKey !== null && key !== lastKey;
+    lastKey = key;
+    let el = null;
+    if (!changed) {
+      if (!prev) return;
+      if (prev.id) el = document.getElementById(prev.id);
+      else el = [...app.querySelectorAll("[data-a]")].find(b => b.dataset.a === prev.a && b.dataset.v === prev.v && b.dataset.t === prev.t && b.dataset.c === prev.c);
+      if (!el || el.disabled) el = app.querySelector("[data-focus]");
+    } else {
+      el = app.querySelector("[data-focus]") || app.querySelector("h1, h2");
+      if (el && !el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+    }
+    if (el) try { el.focus({ preventScroll: true }); } catch (e) {}
+  }
+  // Speak a short message without moving focus (a timeout, a copied link, waiting on the other coach)
+  function announce(text) {
+    if (typeof document === "undefined" || !text) return;
+    const sr = document.getElementById("sr"); if (!sr) return;
+    sr.textContent = "";
+    clearTimeout(srTimer);
+    srTimer = setTimeout(() => { sr.textContent = text; }, 80);
   }
 
   /* ---------- Sound ---------- */
@@ -2360,6 +2523,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!S.ready || S.ready.id !== id) S.ready = { id, who: [false, false] };
     S.ready.who[NET.me] = true;
     if (S.ready.who[0] && S.ready.who[1]) { S.ready = null; cont(); }
+    else announce(`Waiting for ${name(1 - NET.me)} to tap Next.`);
   }
   function preSnap(a) {
     const pre = S && S.teams ? { teams: true, snap: S.snap, quarter: S.quarter, phase: S.phase, scores: [S.teams[0].score, S.teams[1].score], lastId: S.last && S.last.id } : { phase: S && S.phase };
@@ -2409,7 +2573,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       if (S.phase !== "netjoin") {
         const host = st.draft.t[0], mine = (S.draft && S.draft.t && S.draft.t[1]) || { name: "Visitors", color: COLORS[1] };
         const color = mine.color !== host.color ? mine.color : COLORS.find(c => c !== host.color);
-        S = { v: 1, phase: "netjoin", draft: { t: [host, { name: mine.name, color, cpu: false }], qLen: st.draft.qLen, ot: !!st.draft.ot, aud: st.draft.aud } };
+        S = { v: 1, phase: "netjoin", draft: { t: [host, { name: mine.name, color, cpu: false, off: mine.off || "bal", def: mine.def || "bal" }], qLen: st.draft.qLen, ot: !!st.draft.ot, aud: st.draft.aud } };
         render();
       }
       return;
@@ -2436,7 +2600,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     tries = tries || 0;
     if (!netReady()) return;
     const d = S.draft;
-    const host = { name: (d.t[0].name || "").trim() || "Home", color: d.t[0].color, cpu: false };
+    const host = { name: (d.t[0].name || "").trim() || "Home", color: d.t[0].color, cpu: false, off: d.t[0].off || "bal", def: d.t[0].def || "bal" };
     let code = ""; for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
     const lobby = { v: 1, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, ot: !!d.ot, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
     const wid = newWid(), ref = netDb().ref("games/" + code);
@@ -2453,7 +2617,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function netJoin() {
     const ref = NET.ref; if (!ref || S.phase !== "netjoin") return;
     const mine = S.draft.t[1], wid = newWid();
-    const me = { name: (mine.name || "").trim() || "Visitors", color: mine.color, cpu: false };
+    const me = { name: (mine.name || "").trim() || "Visitors", color: mine.color, cpu: false, off: mine.off || "bal", def: mine.def || "bal" };
     NET.busy = true; render();
     ref.transaction(cur => {
       if (!cur || !cur.state) return;
@@ -2477,7 +2641,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "netshare": {
         const url = inviteLink(NET.code), text = `Play Gridiron Duel with me. Game code ${NET.code}`;
         if (typeof navigator !== "undefined" && navigator.share) { navigator.share({ title: "Gridiron Duel", text, url }).catch(() => {}); return; }
-        try { navigator.clipboard.writeText(url).then(() => { NET.copied = true; render(); }); } catch (e) {}
+        try { navigator.clipboard.writeText(url).then(() => { NET.copied = true; render(); announce("Invite link copied."); }); } catch (e) {}
         return;
       }
       case "netback": case "netleave": {
@@ -2492,6 +2656,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
 
   /* ---------- Online screens ---------- */
+  const styleLabel = (v, book) => v === RANDOM_STYLE ? "Surprise" : (book[v] || book.bal).short;
   const qlenLabel = q => `${Math.round(q / 60)}-minute`;
   function callName(id) {
     return ({ punt: "Punt", fg: "Field goal", kneel: "Kneel down", fp: "Fake punt", ffg: "Fake field goal" })[id] || (OFFP[id] ? OFFP[id].name : DEFP[id] ? DEFP[id].name : "");
@@ -2531,7 +2696,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function vLobby() {
     const [h, g] = S.draft.t, me = NET.me, code = S.online.code;
     const side = (t, where) => t
-      ? `<div class="side" style="--team:${t.color}"><div class="at">${where}</div><div class="nm">${esc(t.name)}</div></div>`
+      ? `<div class="side" style="--team:${t.color}"><div class="at">${where}</div><div class="nm">${esc(t.name)}</div><div class="at">${styleLabel(t.off, OFF_STYLES)} · ${styleLabel(t.def, DEF_STYLES)}</div></div>`
       : `<div class="side" style="--team:var(--line)"><div class="at">${where}</div><div class="nm muted dots">Waiting</div></div>`;
     const vs = `<div class="vs">${side(g, "Away")}<span class="at">at</span>${side(h, "Home")}</div>`;
     let body;
@@ -2604,9 +2769,16 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     switch (a) {
       case "color": S.draft.t[+ds.t].color = ds.c; break;
       case "ctrl": S.draft.t[+ds.t].cpu = ds.v === "1"; break;
+      case "ostyle": case "dstyle": {
+        const ids = a === "ostyle" ? OFF_STYLE_IDS : DEF_STYLE_IDS, tm = S.draft.t[+ds.t];
+        if (tm && (ids.includes(ds.v) || ds.v === RANDOM_STYLE)) { tm[a === "ostyle" ? "off" : "def"] = ds.v; tm.styled = true; }
+        break;
+      }
       case "qlen": S.draft.ot = ds.v === "ot"; S.draft.qLen = S.draft.ot ? 900 : +ds.v; break;
       // One-tap solo game: the home team is yours, the away team gets the computer coordinator
-      case "solo": { if (online) break; const draft = S.draft; draft.t[0].cpu = false; draft.t[1].cpu = true; initGame(draft); S.lastDraft = draft; window.scrollTo(0, 0); break; }
+      case "solo": { if (online) break; const draft = S.draft; draft.t[0].cpu = false; draft.t[1].cpu = true;
+        if (!draft.t[1].styled) { draft.t[1].off = RANDOM_STYLE; draft.t[1].def = RANDOM_STYLE; }
+        initGame(draft); S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "kickoff": { const draft = S.draft; initGame(draft); if (online) S.online = online; else S.lastDraft = draft; window.scrollTo(0, 0); break; }
       case "reveal": S.phase = S.side === "aud" ? "los" : "call"; window.scrollTo(0, 0); break;
       case "aud": S.draft.aud = ds.v === "1"; break;
@@ -2629,9 +2801,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "toss": if (S.phase === "toss" && S.toss) { if (S.toss.step === "call") tossCall(ds.v); else tossChoose(ds.v); tossNext(); window.scrollTo(0, 0); } break;
       case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
       case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
-      case "to": callTimeout(+ds.t); break;
-      case "spike": if (S.clockRunning && S.down <= 3) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; } break;
-      case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) S.spikeNext = false; } break;
+      case "to": if (callTimeout(+ds.t)) announce(S.toNote); break;
+      case "spike": if (S.clockRunning && S.down <= 3) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; announce(S.spikeNext ? "Spike set for the next snap." : "Spike cancelled."); } break;
+      case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) S.spikeNext = false; announce(S.noHuddle ? "Going no huddle." : "No huddle cancelled."); } break;
       case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); if (online) S.online = online; window.scrollTo(0, 0); break; }
       case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
       case "end":
