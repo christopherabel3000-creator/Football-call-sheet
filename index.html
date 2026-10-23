@@ -293,7 +293,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     ret: { name: "Returner back deep", hint: "The punt return unit is on the field. Light up front." }
   };
   // Special teams units can't be disguised: you can see who ran onto the field
+  // How often a computer defense disguises each call (a human defense chooses for itself)
   const DISGUISE = { rb: .3, ba: .25, ma: .4, zo: .33, c3: .35, pr: .28, ab: .45, zb: .5, blk: 0, ret: 0 };
+  // Disguising means rotating late into the real call, so the defense is a step slow at the snap:
+  // a small edge for the offense on that play (on the same scale as the play-call table)
+  const DISGUISE_COST = .25;
   // Matchup edge for the offense: +2 great call, -2 the defense guessed right
   const M = {
     ir: { rb: -2, ba: 0, ma: 1, zo: 1, pr: 1, ab: -1, c3: -1, zb: 0 },
@@ -673,7 +677,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function startPlay() {
     if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
     S.scoutNote = null;
-    S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.locked = false; S.aud = null; S.look = null; S.audSel = null;
+    S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.locked = false; S.aud = null; S.look = null; S.audSel = null; S.disgOn = false; S.disgSel = null; S.disg = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
     // No huddle: both sides stay in the personnel that was on the field for the last snap
@@ -712,10 +716,34 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const hailOK = () => !S.twoPt && (S.quarter === 2 || S.quarter >= 4) && S.clock <= 15 && S.spot <= 70;
   const offIds = pk => OFF_IDS.concat(sneakOK() ? ["qs"] : [], hailOK() ? ["hm"] : [], pk === "jumbo" ? ["te"] : []);
   const audIds = () => offIds(S.offPkg).filter(id => id !== S.offCall);
+  // The look the offense sees at the line. A human defense picked it when it locked in its call;
+  // a computer defense decides here.
   function makeLook() {
-    const d = S.defCall, fake = rand() < (DISGUISE[d] ?? .25);
-    const shown = fake ? DEF_IDS.filter(x => x !== d)[ri(0, DEF_IDS.length - 2)] : d;
-    return { d: shown, fake };
+    const d = S.defCall;
+    if (!S.teams[1 - S.poss].cpu) return S.disg && S.disg !== d && LOOKS[S.disg] ? { d: S.disg, fake: true } : { d, fake: false };
+    return cpuLook(d);
+  }
+  // Calls a defense may show instead of its real one (special teams units can't hide who ran on)
+  const disguiseOK = () => audiblesOn() && !isST(S.offPkg);
+  const lookIdsFor = d => DEF_IDS.filter(x => x !== d);
+  // Per-team counts: how often each defense has disguised, and how often each offense has audibled
+  function lookStat(map, t) { S[map] = S[map] || [{ n: 0, k: 0 }, { n: 0, k: 0 }]; return S[map][t]; }
+  // A computer defense disguises more against an offense that audibles a lot, and picks the fake look
+  // that baits the worst check: the play the offense would want against the look, judged against the real call
+  function cpuLook(d) {
+    if (!DEF_IDS.includes(d)) return { d, fake: false };
+    const st = lookStat("audStats", S.poss), audRate = (st.k + 1) / (st.n + 4);
+    if (rand() >= (DISGUISE[d] ?? .25) * clamp(.8 + 1.6 * audRate, .8, 1.8)) return { d, fake: false };
+    const cands = lookIdsFor(d);
+    if (rand() < .3) return { d: cands[ri(0, cands.length - 1)], fake: true };
+    let best = null, bv = 9;
+    cands.forEach(L => {
+      let bp = null, be = -9;
+      OFF_IDS.forEach(p => { const e = M[p][L] + rand() * .5; if (e > be) { be = e; bp = p; } });
+      const v = M[bp][d] + rand() * .5;
+      if (v < bv) { bv = v; best = L; }
+    });
+    return { d: best, fake: true };
   }
   const edgeVs = (off, def) => clamp(M[off][def] + pkgEdge(off, S.offPkg, S.defPkg) + styleEdge(off, def, S.poss), -3, 3);
   // Both calls are in: the offense gets one look at the defense before the snap
@@ -736,7 +764,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (cur > -1) return;
     let best = null, be = -9;
     audIds().forEach(id => { const e = edgeVs(id, ld) + (S.toGo >= 8 && OFFP[id].kind === "run" ? -1 : 0) + (S.toGo <= 2 && id === "dp" ? -1 : 0); if (e > be) { be = e; best = id; } });
-    if (best && be - cur >= 2 && rand() < .65) { S.aud = { from: S.offCall, to: best }; S.offCall = best; S.offSide = S.offSide && sideOn(best); }
+    // Trust the look less against a defense that has been disguising a lot
+    const ds = lookStat("disgStats", 1 - S.poss), fakeRate = (ds.k + 1) / (ds.n + 3);
+    if (best && be - cur >= 2 && rand() < .65 * clamp((1 - fakeRate) / .67, .25, 1.3)) { S.aud = { from: S.offCall, to: best }; S.offCall = best; S.offSide = S.offSide && sideOn(best); }
   }
   // Each coordinator's last package is remembered as the default for their next call
   function pkgMem(t) { S.pkgMem = S.pkgMem || {}; return (S.pkgMem[t] = S.pkgMem[t] || { off: "p11", def: "nickel" }); }
@@ -747,11 +777,24 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (isOff) { S.offPkg = pk; if (!isST(pk)) pkgMem(S.poss).off = pk; }
     else { S.defPkg = pk; pkgMem(1 - S.poss).def = S.defPkg; }
     if (S.side === "off") { S.offCall = S.sel; S.offSide = !!S.selSide && sideOn(S.sel) && sidelineOK(); S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
-    else { S.defCall = S.sel; afterDef(); }
+    else {
+      S.defCall = S.sel;
+      S.disg = null;
+      if (S.disgOn && disguiseOK() && DEF_IDS.includes(S.sel)) {
+        const c = lookIdsFor(S.sel);
+        S.disg = c.includes(S.disgSel) ? S.disgSel : c[ri(0, c.length - 1)];
+      }
+      afterDef();
+    }
   }
   function resolve() {
     let r;
     scoutRecord();
+    if (S.look && OFFP[S.offCall]) {
+      const a = lookStat("audStats", S.poss), g = lookStat("disgStats", 1 - S.poss);
+      a.n++; if (S.aud) a.k++;
+      g.n++; if (S.look.fake) g.k++;
+    }
     if (S.twoPt) { resolveTwo(); return; }
     if (S.aud && S.wasRunning && S.clock > 8) tick(ri(2, 4)); // changing the play at the line uses up play clock
     const pre = snapState();
@@ -767,7 +810,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!r.opk) { r.opk = S.offPkg; r.dpk = S.defPkg; }
     if (r.m != null && !r.preSnap) { r.s = playScore(r, S.snap); r.read = verdict(r, S.snap); }
     if (S.aud) r.audNote = audNote();
-    else if (S.look && S.look.fake && !r.preSnap && OFFP[S.offCall]) r.audNote = `The defense disguised it: they showed ${LOOKS[S.look.d].name.toLowerCase()} but played ${DEFP[S.defCall].name}.`;
+    else if (S.look && S.look.fake && !r.preSnap && OFFP[S.offCall]) r.audNote = `The defense disguised it: they showed ${LOOKS[S.look.d].name.toLowerCase()} but played ${DEFP[S.defCall].name}. Rotating late cost them a step at the snap.`;
     else if (S.scoutNote && !r.preSnap) r.audNote = S.scoutNote.text;
     if (!noFlags && !preCode) {
       const code = rollLive(S.offCall, S.defCall, r);
@@ -793,7 +836,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.last = r; S.phase = "result"; S.banner = "";
     S.log.unshift({ q: S.snap.q, clock: S.snap.clock, team: S.snap.poss, sit: S.snap.sit,
       off: S.offCall === "punt" ? "Punt" : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.offSide && sideOn(S.offCall) ? " (sideline)" : ""}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
-      def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
+      def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}${S.look && S.look.fake ? ` (disguised as ${LOOKS[S.look.d].name.toLowerCase()})` : ""}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
   }
   function cont() {
     S.nhLock = null; // set again by startPlay when the next snap is a no-huddle snap
@@ -936,7 +979,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // The dice for one snap: yards, and whether it was a sack, interception, incompletion or fumble
   function rollPlay(off, def, opk, dpk, side) {
     opk = opk || "p11"; dpk = dpk || "nickel"; side = !!side && sideOn(off);
-    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), se = styleEdge(off, def, S.poss), m = clamp(M[off][def] + pe + se + (side ? SIDE_EDGE[off][def] || 0 : 0), -3, 3);
+    const dc = S.look && S.look.fake ? DISGUISE_COST : 0;
+    const P = OFFP[off], pe = pkgEdge(off, opk, dpk), se = styleEdge(off, def, S.poss), m = clamp(M[off][def] + pe + se + dc + (side ? SIDE_EDGE[off][def] || 0 : 0), -3, 3);
     const OP = OFF_PKGS[opk] || {}, compMul = (OP.comp || {})[off] || 1;
     let y = 0, time = 0, fumble = false, int = false, sack = false, inc = false, oob = false;
     if (P.kind === "run") {
@@ -1901,6 +1945,21 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       st += `</div>`;
     }
     const canSide = isOff && !kickUnit && sidelineOK(), sideNow = canSide && !!S.selSide && sideOn(S.sel);
+    // Defense: show the real look at the line, or disguise it as another one
+    const canDisg = !isOff && disguiseOK(), realCall = DEF_IDS.includes(S.sel) ? S.sel : null;
+    const disgNow = canDisg && !!S.disgOn && !!realCall, fakeLook = disgNow && lookIdsFor(realCall).includes(S.disgSel) ? S.disgSel : null;
+    const lookCard = id => `<button class="play" data-a="dlook" data-v="${id}" aria-pressed="${fakeLook === id}">
+        <span class="tag">Look</span><span class="nm">${LOOKS[id].name}</span><span class="ds">${LOOKS[id].hint}</span></button>`;
+    const disgPicker = canDisg ? `<p class="sechead">Pre-snap look</p>
+        <div class="seg" role="group" aria-label="Pre-snap look">
+          <button data-a="disg" data-v="0" aria-pressed="${!S.disgOn}">Show it<br><small class="muted">Line up in your real look</small></button>
+          <button data-a="disg" data-v="1" aria-pressed="${!!S.disgOn}">Disguise it<br><small class="muted">Show something else</small></button>
+        </div>
+        <p class="muted pkdesc">${S.disgOn
+          ? (realCall ? "Pick the look to show. A good fake can bait the offense into a bad audible, but rotating late leaves you a step slow at the snap: a small edge for the offense." : "Pick your call first, then the look to show.")
+          : "The offense sees how you really line up. No cost, but a sharp offense will read it and check to a better play."}</p>
+        ${disgNow ? `<p class="sechead">Show them</p><div class="plays">${lookIdsFor(realCall).map(lookCard).join("")}</div>
+        ${fakeLook ? "" : `<p class="muted pkdesc">No look picked: a random one is shown.</p>`}` : ""}` : "";
     const sideToggle = canSide ? `<p class="sechead">Clock</p>
         <button class="btn ghost" data-a="side" aria-pressed="${sideNow}" ${sideOn(S.sel) ? "" : "disabled"} style="width:100%">${sideNow ? "Sideline: get out of bounds ✓" : "Run it to the sideline"}<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">${sideOn(S.sel) || !S.sel ? "Stops the clock on most gains. Fewer yards, and Cover 2 sits on short throws to the sideline." : "Not available on this play."}</small></button>` : "";
     const selName = S.sel ? (S.sel === "punt" ? "Punt" : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
@@ -1920,7 +1979,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         <div class="plays">${ids.map(id => card(id, book[id].name, book[id].tag + fitTag(id), book[id].desc)).join("")}</div>` : ""}
         ${st}
         ${sideToggle}
-        <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}${sideNow ? " · Sideline" : ""}` : "Pick a call"}</button></div>
+        ${disgPicker}
+        <div class="lockbar"><button class="btn team" data-a="lock" ${S.sel ? "" : "disabled"}>${S.sel ? `Lock in ${esc(selName)}${sideNow ? " · Sideline" : ""}${disgNow ? ` · Disguised${fakeLook ? " as " + esc(LOOKS[fakeLook].name.toLowerCase()) : ""}` : ""}` : "Pick a call"}</button></div>
       </div>`;
   }
 
@@ -2497,7 +2557,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function netCan(a, ds) {
     const me = NET.me;
-    if (["pick", "pkg", "audpick", "side"].includes(a)) return actor() === me;
+    if (["pick", "pkg", "audpick", "side", "disg", "dlook"].includes(a)) return actor() === me;
     if (me < 0) return false;
     switch (a) {
       case "lock": return S.phase === "call" && actor() === me;
@@ -2730,7 +2790,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         }
         break;
       case "los": msg = `${tm.name} are reading your defense at the line and may audible.`;
-        if (NET.me === 1 - o && S.defCall) mine = `<div class="mycall" style="--team:${S.teams[1 - o].color}"><span class="eyebrow">Your call · ${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short : ""}</span><span class="nm">${esc(callName(S.defCall))}</span></div>`;
+        if (NET.me === 1 - o && S.defCall) mine = `<div class="mycall" style="--team:${S.teams[1 - o].color}"><span class="eyebrow">Your call · ${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short : ""}</span><span class="nm">${esc(callName(S.defCall))}</span>${S.look && S.look.fake ? `<span class="muted">Disguised as ${esc(LOOKS[S.look.d].name.toLowerCase())}</span>` : ""}</div>`;
         break;
       case "pat": eyebrow = "Point after"; msg = `${tm.name} are deciding: kick the extra point or go for two.`; break;
       case "trychoice": eyebrow = "Point after"; msg = `${tm.name} are deciding: go for two again or kick it.`; break;
@@ -2786,6 +2846,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "audible": if (S.phase === "los") { audible(S.audSel); window.scrollTo(0, 0); } break;
       case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
       case "pick": S.sel = ds.v; break;
+      case "disg": if (S.phase === "call" && S.side === "def") S.disgOn = ds.v === "1"; break;
+      case "dlook": if (S.phase === "call" && S.side === "def" && LOOKS[ds.v]) S.disgSel = S.disgSel === ds.v ? null : ds.v; break;
       case "side": if (S.phase === "call" && S.side === "off" && sideOn(S.sel)) S.selSide = !S.selSide; break;
       case "pkg": {
         const isOff = S.side === "off";
