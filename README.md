@@ -16,6 +16,8 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 - Punts, field goals, fakes, PATs and two-point tries, onside kicks
 - Game clock with timeouts, spikes, kneel-downs and the two-minute warning
 - Penalties, play log and box score
+- Computer difficulty: Rookie (loose play calls, no scouting, audibles or disguises, a step slow), Pro (reads the situation and charts your tendencies) and All-Pro (learns your habits fast, counters hard, executes a little better)
+- Halftime scouting report: each team's first-half calls by down and distance, what worked and what didn't, audible and disguise rates, and the habits worth attacking
 - Team identities: each team picks an offensive style (Balanced, Air Raid, Ground & Pound, West Coast) and a defensive style (Balanced, Blitz-Happy, No-Fly Zone, Run Stuffers). Styles tilt the matchups, and the computer coaches to its own style. In Play vs. Computer the computer gets a surprise identity unless you pick one.
 - Screen reader support: each new screen moves VoiceOver to its heading or play result, the scoreboard and field are read as plain sentences, and timeouts and other in-place changes are announced
 
