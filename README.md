@@ -12,7 +12,7 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 - Offensive and defensive playbooks with matchup edges
 - Personnel packages (10, 11, 12, 21, 13, Jumbo vs. Base, Nickel, Dime, Goal Line)
-- Audibles at the line, with defenses that sometimes disguise their look
+- Audibles at the line, and defenses that choose whether to show their real look or disguise it as another (a good fake baits a bad audible, but rotating late costs a step at the snap)
 - Punts, field goals, fakes, PATs and two-point tries, onside kicks
 - Game clock with timeouts, spikes, kneel-downs and the two-minute warning
 - Penalties, play log and box score
