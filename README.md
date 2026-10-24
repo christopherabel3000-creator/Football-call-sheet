@@ -28,7 +28,7 @@ The **How to play** button at the top of every screen explains the rules without
 The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoever makes a decision runs the play on their own phone and saves the new state; the other phone picks it up and redraws. A save only goes through if nobody else saved first, so the two phones always agree.
 
 - `firebase-config.js` holds the Firebase project settings (not secret).
-- `database.rules.json` holds the database security rules to paste into the Firebase console (Realtime Database → Rules → Publish). They only accept well-formed game saves, require each save to be exactly one version newer than the last (so nobody can rewind or wipe a game), and only allow deleting games nobody has touched in 7 days.
+- `database.rules.json` holds the database security rules to paste into the Firebase console (Realtime Database → Rules → Publish). This Firebase project is shared with [Hidden Ranks](https://github.com/christopherabel3000-creator/Hidden-Ranks), whose games live under `hiddenRanks/<CODE>`, so the file has a section for each game. Always paste the whole file, and keep it the same as the copy in the Hidden Ranks repo, or the other game will stop working online. They only accept well-formed game saves, require each save to be exactly one version newer than the last (so nobody can rewind or wipe a game), and only allow deleting games nobody has touched in 7 days.
 - Each time someone creates a game, their phone also deletes up to 20 games that have sat untouched for over a week, so old games don't pile up.
 - If a phone loses its connection mid-game, a banner says so, and the game picks up again when it reconnects.
 
