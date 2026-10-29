@@ -249,6 +249,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 (function () {
   "use strict";
   const KEY = "callsheet-football-v1";
+  // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
+  // together). Online saves carry it, so a phone running an older copy stops and asks its player to
+  // reload instead of running a newer game under old rules. Saves from before this check count as 0.
+  const BUILD = 1;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -482,7 +486,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (d <= 55) return .78 - (d - 50) * .032;
     return Math.max(.08, .62 - (d - 55) * .05);
   }
-  const fgAvailable = () => !S.twoPt && kickDist() <= 63 && (S.down === 4 || ((S.quarter === 2 || S.quarter >= 4) && S.clock <= 40));
+  // Field goals: on 4th down, on any down in the last 40 seconds of a half, and in overtime on any
+  // down once a field goal would win the game
+  const endHalfKick = () => (S.quarter === 2 || S.quarter >= 4) && S.clock <= 40;
+  const fgAvailable = () => !S.twoPt && kickDist() <= 63 && (S.down === 4 || endHalfKick() || otFgWins());
   const puntAvailable = () => !S.twoPt && S.down === 4;
 
   /* ---------- Game flow ---------- */
@@ -592,6 +599,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   // Inside 2:00 of the first half or 5:00 of the second half, running out of bounds stops the clock until the snap
   const oobWindow = () => (S.quarter === 2 && S.clock <= 120) || (S.quarter >= 4 && S.clock <= 300);
+  // Spikes and sideline routes are only on the menu in the last two minutes of each half: Q2, Q4, and
+  // the even overtime periods (2OT, 4OT, 6OT...), which close out each pair of overtime periods
+  const clockWindow = () => S.quarter % 2 === 0 && S.clock > 0 && S.clock <= 120;
+  const spikeOK = () => !!S.clockRunning && S.down <= 3 && clockWindow();
   function finishClock(r, stopped) {
     S.oobRestart = false; S.toNote = "";
     if (!stopped && r.oob) { if (oobWindow()) stopped = true; else S.oobRestart = true; }
@@ -620,6 +631,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const o = otState(); if (!o || S.gameOver) return;
     const ahead = S.teams[team].score > S.teams[1 - team].score;
     if (o.ph === 3 || (o.ph === 1 && team !== o.a) || (o.ph === 2 && (team === o.a || ahead))) S.gameOver = true;
+  }
+  // Overtime walk-off: the other team has already had its possession and 3 points would win it
+  // (sudden death, or the answering possession when tied or down by 1 or 2)
+  function otFgWins() {
+    if (!S.teams || S.quarter < 5 || S.gameOver || S.twoPt) return false;
+    const o = S.ot || { a: S.poss, ph: 3 }, p = S.poss;
+    const lead = S.teams[p].score - S.teams[1 - p].score;
+    return (o.ph === 3 || (o.ph === 2 && p !== o.a)) && lead + 3 > 0;
   }
   // The ball is going to team np: closes out a guaranteed possession
   function otTurn(np) {
@@ -733,8 +752,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   /* ---------- Audibles ---------- */
   const audiblesOn = () => !S.cfg || S.cfg.aud !== false;
   // Plays the offense can check to from its current personnel
-  // The sideline option is offered only when getting out of bounds stops the clock
-  const sidelineOK = () => !S.twoPt && oobWindow() && S.clock > 0;
+  // The sideline option is offered only in the last two minutes of a half (when getting out of bounds stops the clock)
+  const sidelineOK = () => !S.twoPt && clockWindow() && oobWindow();
   // QB sneak: 1 yard or less to go. Hail Mary: end of a half, 30+ yards from the end zone.
   const sneakOK = () => !S.twoPt && S.toGo <= 1;
   const hailOK = () => !S.twoPt && (S.quarter === 2 || S.quarter >= 4) && S.clock <= 15 && S.spot <= 70;
@@ -937,7 +956,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       else if (!onO && late4 && diff < 0) callTimeout(t);
     }
     const o = S.poss, diff = S.teams[o].score - S.teams[1 - o].score;
-    if (S.clockRunning && S.teams[o].cpu && S.down <= 3 && S.tos[o] === 0 &&
+    if (spikeOK() && S.teams[o].cpu && S.tos[o] === 0 &&
         ((S.quarter >= 4 && diff <= 0 && S.clock <= 60) || (S.quarter === 2 && S.clock <= 40 && S.spot >= 55))) S.spikeNext = true;
   }
   // No huddle is only possible after a scrimmage play by the same offense that left the clock running
@@ -1652,7 +1671,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const ot = S.quarter >= 5 ? S.ot : null;
     const lastChance = !!ot && ot.ph === 2 && me !== ot.a && diff < 0;
     const needTD = (late || lastChance) && diff < -3;
-    if (fgAvailable() && S.down < 4 && !needTD && kd <= 55) return "fg";
+    // End of a half: kick it on any down rather than let the clock run out
+    if (fgAvailable() && S.down < 4 && endHalfKick() && !needTD && kd <= 55) return "fg";
+    // Overtime walk-off: kick early only when it's close to automatic. Otherwise keep driving and
+    // let the 4th-down call below decide.
+    if (fgAvailable() && S.down < 4 && otFgWins() && (kd <= 36 || (S.down === 3 && kd <= 45))) return "fg";
     // Last snap of a half and out of field goal range: throw it up
     if (hailOK() && S.clock <= 8 && (S.quarter === 2 || diff <= 0) && !(fgAvailable() && kd <= 55 && diff >= -3)) return "hm";
     if (S.down === 4) {
@@ -1739,7 +1762,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
 
   /* ---------- Persistence ---------- */
-  function save() { if (NET.live || /^(net|connecting|lobby)/.test(S.phase || "")) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function save() { if (NET.live || NET.stale || /^(net|connecting|lobby)/.test(S.phase || "")) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   function loadSaved() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); return s && s.v === 1 ? s : null; } catch (e) { return null; } }
 
   /* ---------- Rendering ---------- */
@@ -1957,7 +1980,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ? `<p class="banner">No huddle. Personnel is locked: ${isOff ? "you stay" : "you're stuck"} in <b>${pkgBook[S.nhLock[isOff ? "off" : "def"]].name}</b>${isOff && stIds.length ? ", unless you send out the kicking unit" : ""}.</p>` : "";
     const pkgPicker = `<p class="sechead">${isOff ? "Personnel" : "Your package"}</p>${lockNote}
       ${regIds.length > 1 || stIds.length ? `<div class="pkgs ${isOff && regIds.length > 1 ? "" : "two"}">${regIds.map(pkgBtn).join("")}</div>` : ""}
-      ${stIds.length ? `<p class="sechead">Special teams unit</p><div class="pkgs two">${stIds.map(pkgBtn).join("")}</div>` : ""}
+      ${stIds.length ? `<p class="sechead">Special teams unit</p>${isOff && S.down < 4 && otFgWins() && stIds.includes("fgu") ? `<p class="muted pkdesc">A field goal wins it, so you can send out the field goal unit on any down.</p>` : ""}<div class="pkgs two">${stIds.map(pkgBtn).join("")}</div>` : ""}
       <p class="muted pkdesc">${esc(pkgBook[pk].desc)}${isOff && S.down === 4 && !S.twoPt && stIds.length ? " The defense sees who runs onto the field before they call it." : ""}</p>`;
     const theirPkg = !isOff && S.offPkg ? `<p class="banner">${esc(name(S.poss))} ${isST(S.offPkg)
         ? `sent out the <b>${ST_PKGS[S.offPkg].name.toLowerCase()}</b> (${ST_PKGS[S.offPkg].who}). They're lining up to kick, but it could be a fake.`
@@ -2034,7 +2057,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.clockRunning) {
       [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0 && (!NET.live || i === NET.me)) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
       if (!t[o].cpu && nhAvailable() && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="nohuddle" aria-pressed="${!!S.noHuddle}">${S.noHuddle ? "Going no huddle" : `${esc(t[o].abbr)}: no huddle`}</button>`;
-      if (!t[o].cpu && S.down <= 3 && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
+      if (!t[o].cpu && (spikeOK() || S.spikeNext) && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
     }
     return `<div class="clockbox"><p class="cstat">${esc(stat)}</p>${btns ? `<div class="clockbtns">${btns}</div>` : ""}</div>`;
   }
@@ -2221,8 +2244,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ]))}
       ${sec("Clock and situations", ul([
         "After most plays the clock runs about 35 seconds before the next snap. Incompletions, scores, turnovers and timeouts stop it.",
-        "Late in a half: use timeouts, spike the ball, go no huddle (faster snaps, but nobody can change personnel), or run a play to the sideline to stop the clock.",
+        "Late in a half: use timeouts, or go no huddle (faster snaps, but nobody can change personnel).",
+        "In the last two minutes of each half, and of the 2nd, 4th and 6th overtime periods (and so on), you can also spike the ball or run a play to the sideline to stop the clock.",
         "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
+        "Overtime: once the other team has had its possession, a field goal that would win the game can be kicked on any down from field goal range.",
         "Leading late with the other team out of timeouts, you can kneel to run out the clock. Trailing late, you can try an onside kick."
       ]))}
       ${sec("Ways to play", ul([
@@ -2236,7 +2261,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         "Open the play-by-play and box score at the bottom of any screen to look back at the game.",
         "With VoiceOver, each new screen starts at its heading or the play result. Swipe right to hear the rest."
       ]))}
-      <button class="btn" data-a="help">Back to the game</button>`;
+      <button class="btn" data-a="help">Back to the game</button>
+      <p class="muted" style="font-size:14px;text-align:center">Gridiron Duel, version ${BUILD}</p>`;
   }
   /* ---------- Halftime report ---------- */
   const BUCKET_HEAD = { s: "Short yardage (3 or less to go)", m: "Medium (4 to 7 to go)", l: "Long (8 or more to go)" };
@@ -2363,10 +2389,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (typeof document === "undefined") return;
     const app = document.getElementById("app");
     const views = { setup: vSetup, handoff: vHandoff, call: vCall, result: vResult, pat: vPAT, trychoice: vTry, penalty: vPenalty, final: vFinal, halftime: vHalftime, los: vLOS, kickchoice: vKick, toss: vToss,
-      netcreate: vNetCreate, netjoin: vNetJoin, connecting: vConnecting, lobby: vLobby };
+      netcreate: vNetCreate, netjoin: vNetJoin, connecting: vConnecting, lobby: vLobby, netseat: vSeat };
     let view = views[S.phase] || vSetup;
     // Online: when it's the other coach's decision, show a waiting screen instead of their call sheet
     if (NET.live && WAIT_PHASES.has(S.phase) && actor() !== NET.me) view = vWait;
+    if (NET.stale) view = vUpdate;
     if (helpOpen) view = vHelp;
     const on = !Sound.muted();
     const icon = on
@@ -2376,7 +2403,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const key = screenKey(view), prev = focusSig(app);
     const offline = NET.ref && NET.everConnected && NET.connected === false
       ? `<p class="banner" role="status">Connection lost. Trying to reconnect. The game picks up where it left off once you're back online.</p>` : "";
-    app.innerHTML = top + offline + view() + (helpOpen ? "" : vExtras());
+    const bumped = NET.live && NET.bumped && NET.me < 0 && !helpOpen && NET.bumpedSeat >= 0
+      ? `<p class="banner">Another phone took over your seat, so this phone is watching.</p><button class="btn ghost" data-a="netseat" data-t="${NET.bumpedSeat}" ${NET.busy ? "disabled" : ""}>Take my seat back</button>` : "";
+    app.innerHTML = top + offline + bumped + view() + (helpOpen || NET.stale ? "" : vExtras());
     placeFocus(app, key, prev);
   }
   /* ---------- Screen reader support ---------- */
@@ -2697,7 +2726,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Whoever makes a decision runs the simulation on their own phone, then writes the new
   // state; the other phone picks it up and redraws. A write only succeeds if nobody else
   // wrote first (checked with "ver"), so two phones can never fork the game.
-  const NET = { live: false, me: -1, code: null, ref: null, db: null, ver: 0, wid: null, remote: null, err: null, busy: false, copied: false, status: "" };
+  // The state also carries BUILD, the version of the code that saved it. A phone that sees a game
+  // saved by a newer version stops (NET.stale) and asks its player to reload.
+  const NET = { live: false, me: -1, code: null, ref: null, db: null, ver: 0, wid: null, remote: null, remoteVal: null, err: null, busy: false, copied: false, status: "",
+    stale: false, staleCode: null, bumped: false, bumpedSeat: -1 };
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty", "toss"]);
   const NET_COMMIT = new Set(["half", "lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "nohuddle", "kickoff", "rematch", "end"]);
@@ -2802,6 +2834,17 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (a === "pen" && S && S.pen && S.pen.pre) pre.scores = S.pen.pre.scores.slice();
     return pre;
   }
+  // A game saved by a newer version of Gridiron Duel than the one running here
+  const newerBuild = st => !!st && (+st.build || 0) > BUILD;
+  const parseState = v => { try { return v && v.state ? JSON.parse(v.state) : null; } catch (e) { return null; } };
+  // This phone is out of date for the game it's in: stop listening, write nothing more, and show the
+  // reload screen. The newer phone carries on, and this one is told again if it rejoins without updating.
+  function goStale() {
+    const code = NET.code || NET.lastCode;
+    netDisconnect();
+    NET.stale = true; NET.staleCode = code;
+    render();
+  }
   // Take the database's copy of the game as the truth and redraw
   function adopt(val, sounds) {
     if (!val || !val.state) return;
@@ -2809,14 +2852,21 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (NET.live && val.ver < NET.ver) return;
     let st;
     try { st = JSON.parse(val.state); } catch (e) { return; }
-    const pre = preSnap(val.act);
+    if (newerBuild(st)) { goStale(); return; }
+    const pre = preSnap(val.act), wasMe = NET.live ? NET.me : -1;
     S = st; NET.ver = val.ver; NET.wid = val.wid; NET.live = true; NET.err = null;
     NET.me = S.online && S.online.seats ? S.online.seats.indexOf(DEVICE) : -1;
+    // Another phone took this phone's seat (the coach rejoined from somewhere else): switch to watching
+    const bumped = wasMe >= 0 && NET.me < 0;
+    if (bumped) { NET.bumped = true; NET.bumpedSeat = wasMe; }
+    else if (NET.me >= 0) NET.bumped = false;
     render();
+    if (bumped) announce("Another phone took over your seat. This phone is watching now.");
     if (sounds && val.by !== DEVICE) Sound.play(cuesFor(val.act, pre));
   }
   function netPush(a, retried) {
     const ref = NET.ref; if (!ref) return;
+    S.build = BUILD;
     const json = JSON.stringify(S), base = NET.ver, wid = newWid();
     NET.ver = base + 1; NET.wid = wid;
     ref.transaction(cur => {
@@ -2843,10 +2893,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     if (NET.live) { adopt(val, true); return; }
     let st; try { st = JSON.parse(val.state); } catch (e) { return; }
+    if (newerBuild(st)) { goStale(); return; }
     const seats = (st.online && st.online.seats) || [];
     if (seats.indexOf(DEVICE) >= 0) { adopt(val, false); setUrl(NET.code); return; }
+    NET.remote = st; NET.remoteVal = val; NET.ver = val.ver;
     if (st.phase === "lobby" && !seats[1]) {
-      NET.remote = st; NET.ver = val.ver;
       if (S.phase !== "netjoin") {
         const host = st.draft.t[0], mine = (S.draft && S.draft.t && S.draft.t[1]) || { name: "Visitors", color: COLORS[1] };
         const color = mine.color !== host.color ? mine.color : COLORS.find(c => c !== host.color);
@@ -2855,8 +2906,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       }
       return;
     }
-    // Two players are already in: this phone can watch
-    adopt(val, false);
+    // Both coaches are already in. If this phone belongs to one of them but lost its place (a different
+    // phone, cleared browser data, or iPhone Safari wiping storage inside itch.io's frame), the coach can
+    // take the seat back. Otherwise this phone can watch.
+    if (S.phase !== "netseat") { S = { v: 1, phase: "netseat", draft: (S && S.draft) || defaultDraft() }; NET.err = null; }
+    render();
   }
   function netConnect(code) {
     code = String(code || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
@@ -2871,7 +2925,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function netDisconnect() {
     if (NET.ref) { try { NET.ref.off(); } catch (e) {} }
-    Object.assign(NET, { live: false, me: -1, code: null, ref: null, ver: 0, wid: null, remote: null, busy: false, copied: false });
+    Object.assign(NET, { live: false, me: -1, code: null, ref: null, ver: 0, wid: null, remote: null, remoteVal: null, busy: false, copied: false,
+      stale: false, staleCode: null, bumped: false, bumpedSeat: -1 });
   }
   function netCreate(tries) {
     tries = tries || 0;
@@ -2879,7 +2934,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const d = S.draft;
     const host = { name: (d.t[0].name || "").trim() || "Home", color: d.t[0].color, cpu: false, off: d.t[0].off || "bal", def: d.t[0].def || "bal" };
     let code = ""; for (let i = 0; i < 4; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-    const lobby = { v: 1, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, ot: !!d.ot, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
+    const lobby = { v: 1, build: BUILD, phase: "lobby", draft: { t: [host, null], qLen: d.qLen, ot: !!d.ot, aud: d.aud !== false }, online: { code, seats: [DEVICE, null] } };
     const wid = newWid(), ref = netDb().ref("games/" + code);
     NET.busy = true; NET.err = null; render();
     ref.transaction(cur => cur ? undefined : { ver: 1, wid, by: DEVICE, act: "create", state: JSON.stringify(lobby), t: Date.now() }, (err, committed) => {
@@ -2910,22 +2965,50 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     ref.transaction(cur => {
       if (!cur || !cur.state) return;
       const st = JSON.parse(cur.state);
-      if (st.phase !== "lobby" || (st.online.seats[1] && st.online.seats[1] !== DEVICE)) return;
+      if (newerBuild(st) || st.phase !== "lobby" || (st.online.seats[1] && st.online.seats[1] !== DEVICE)) return;
       if (me.color === st.draft.t[0].color) me.color = COLORS.find(c => c !== st.draft.t[0].color);
-      st.online.seats[1] = DEVICE; st.draft.t[1] = me;
+      st.online.seats[1] = DEVICE; st.draft.t[1] = me; st.build = BUILD;
       return { ver: cur.ver + 1, wid, by: DEVICE, act: "join", state: JSON.stringify(st), t: Date.now() };
     }, (err, committed, snap) => {
       NET.busy = false;
+      if (!committed && !err && newerBuild(parseState(snap && snap.val()))) { goStale(); return; }
       if (!committed) { NET.err = err ? "Couldn't join. Check your connection and try again." : "Someone else joined this game first."; S = { v: 1, phase: "setup", draft: defaultDraft() }; netDisconnect(); setUrl(null); render(); return; }
       adopt(snap.val(), false); setUrl(NET.code);
     });
   }
-  function netAct(a) {
+  // Take seat t (0 home, 1 away) for this phone, for a coach whose phone lost its place in the game.
+  // Whichever phone had the seat switches to watching.
+  function netSeat(t) {
+    const ref = NET.ref; if (!ref || NET.busy || (t !== 0 && t !== 1)) return;
+    const wid = newWid();
+    NET.busy = true; NET.err = null; render();
+    ref.transaction(cur => {
+      const st = parseState(cur);
+      if (!st || newerBuild(st) || !st.online || !st.online.seats) return;
+      if (t === 1 && !st.online.seats[1]) return; // nobody has joined as the away team yet
+      st.online.seats[t] = DEVICE; st.build = BUILD;
+      return { ver: cur.ver + 1, wid, by: DEVICE, act: "seat", state: JSON.stringify(st), t: Date.now() };
+    }, (err, committed, snap) => {
+      NET.busy = false;
+      const v = snap && snap.val();
+      if (!committed && !err && newerBuild(parseState(v))) { goStale(); return; }
+      if (!committed) { NET.err = err ? "Couldn't take the seat back. Check your connection and try again." : "Couldn't take the seat back. Try again."; render(); return; }
+      adopt(v, false); setUrl(NET.code);
+      const tm = S.teams ? S.teams[t] : S.draft && S.draft.t && S.draft.t[t];
+      if (NET.me === t && tm) announce(`You're back in as the ${tm.name} coach.`);
+    });
+  }
+  // Get the newest copy of the game (the URL keeps the game code, so it rejoins on its own)
+  function reloadGame() { try { location.reload(); } catch (e) {} }
+  function netAct(a, ds) {
     switch (a) {
       case "netcreate": NET.err = null; S = { v: 1, phase: "netcreate", draft: S.draft || defaultDraft() }; break;
       case "netgo": netCreate(); return;
       case "netcode": { const el = typeof document !== "undefined" && document.getElementById("joincode"); netConnect(el ? el.value : ""); return; }
       case "netjoin": netJoin(); return;
+      case "netseat": netSeat(ds ? +ds.t : -1); return;
+      case "netwatch": if (NET.remoteVal && !NET.live) adopt(NET.remoteVal, false); return;
+      case "netreload": reloadGame(); return;
       case "netshare": {
         const inv = invite(NET.code);
         if (typeof navigator !== "undefined" && navigator.share) { navigator.share(Object.assign({ title: "Gridiron Duel", text: inv.text }, inv.url ? { url: inv.url } : {})).catch(() => {}); return; }
@@ -2973,7 +3056,48 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       </div>
       ${teamCfgHtml(d, 1, { label: "Your team", noCtrl: true, taken: host.color })}
       <button class="btn" data-a="netjoin" ${NET.busy ? "disabled" : ""}>${NET.busy ? "Joining..." : "Join game"}</button>
+      <section class="panel">
+        <p class="muted">Did you create this game? If this phone lost track of it, take back your seat as the home team instead.</p>
+        <button class="btn ghost" data-a="netseat" data-t="0" ${NET.busy ? "disabled" : ""}>I created this game</button>
+      </section>
       <div class="foot"><button class="linkbtn" data-a="netback">Back</button></div>`;
+  }
+  // Both coaches are in, and this phone isn't one of them as far as the game knows
+  function vSeat() {
+    const st = NET.remote || {}, code = NET.code || "";
+    const team = i => (st.teams && st.teams[i]) || (st.draft && st.draft.t && st.draft.t[i]) || { name: i ? "Visitors" : "Home", color: COLORS[i] };
+    const h = team(0), g = team(1);
+    const sc = st.teams ? ` It's ${esc(g.name)} ${st.teams[1].score}, ${esc(h.name)} ${st.teams[0].score}.` : "";
+    const seatBtn = i => `<button class="btn team" style="--team:${esc(team(i).color)}" data-a="netseat" data-t="${i}" ${NET.busy ? "disabled" : ""}>I'm the ${esc(team(i).name)} coach</button>`;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Online game · ${esc(code)}</p>
+        <h1>Rejoin <em>game</em></h1>
+        <p class="muted">Both coaches are already in this game.${sc} If you're one of them, take your seat back. The phone that has your seat now will switch to watching.</p>
+      </div>
+      ${NET.err ? `<p class="banner">${esc(NET.err)}</p>` : ""}
+      <section class="panel">${seatBtn(1)}${seatBtn(0)}</section>
+      <button class="btn ghost" data-a="netwatch">Just watch</button>
+      <div class="foot"><button class="linkbtn" data-a="netback">Back</button></div>`;
+  }
+  // This phone has an older version of the game than the one the online game was saved with
+  function vUpdate() {
+    const code = NET.staleCode, itch = onItch(), page = itch ? itchPage() : null;
+    const after = !code ? "" : itch ? ` Then type game code ${esc(code)} and tap Join to pick up where you left off.` : " The game picks up where you left off.";
+    const reload = page
+      ? `<a class="btn" href="${esc(page)}" target="_top" style="display:block;box-sizing:border-box;text-align:center;text-decoration:none">Reload the game</a>`
+      : `<button class="btn" data-a="netreload">Reload the game</button>`;
+    return `
+      <div class="masthead">
+        <p class="eyebrow">Online game${code ? " · " + esc(code) : ""}</p>
+        <h1>Update <em>needed</em></h1>
+        <p class="muted">This game was saved by a newer version of Gridiron Duel than the one on this phone. Reload to get the new version.${after}</p>
+      </div>
+      <section class="panel">
+        ${reload}
+        <p class="muted" style="font-size:14px">Still seeing this after a reload? The copy of the game you opened may not have the update yet. Try again in a few minutes.</p>
+      </section>
+      <div class="foot"><button class="linkbtn" data-a="netback">Leave this game</button></div>`;
   }
   function vConnecting() {
     return `
@@ -2999,6 +3123,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     else if (me === 0) body = `${vs}
       <section class="panel"><p><b>${esc(g.name)}</b> are in. ${S.draft.ot ? "Overtime mode" : esc(qlenLabel(S.draft.qLen)) + " quarters"}, audibles ${S.draft.aud !== false ? "on" : "off"}.</p>
       <button class="btn" data-a="kickoff">Kick off</button></section>`;
+    else if (me < 0) body = `${vs}
+      <section class="panel"><p class="muted dots">You're watching. Waiting for ${esc(h.name)} to kick off</p></section>`;
     else body = `${vs}
       <section class="panel"><p class="muted dots">You're in. Waiting for ${esc(h.name)} to kick off</p></section>`;
     return `
@@ -3052,7 +3178,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (a === "mute") { Sound.toggle(); render(); return; }
     // The help screen sits on top of whatever is going on; it never touches the game itself
     if (a === "help") { helpOpen = !helpOpen; render(); if (typeof window !== "undefined" && window.scrollTo) window.scrollTo(0, 0); return; }
-    if (a.startsWith("net")) { netAct(a); return; }
+    if (a.startsWith("net")) { netAct(a, ds); return; }
+    // Out of date for this online game: nothing else happens until the player reloads or leaves
+    if (NET.stale) return;
     if (NET.live && !netCan(a, ds)) return;
     const online = NET.live ? S.online : null;
     const toLobby = () => ({ v: 1, phase: "lobby", draft: JSON.parse(JSON.stringify(S.cfg)), online });
@@ -3103,7 +3231,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         S.hready = null; startPlay(); window.scrollTo(0, 0); break;
       }
       case "to": if (callTimeout(+ds.t)) announce(S.toNote); break;
-      case "spike": if (S.clockRunning && S.down <= 3) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; announce(S.spikeNext ? "Spike set for the next snap." : "Spike cancelled."); } break;
+      case "spike": if (S.spikeNext || spikeOK()) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; announce(S.spikeNext ? "Spike set for the next snap." : "Spike cancelled."); } break;
       case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) S.spikeNext = false; announce(S.noHuddle ? "Going no huddle." : "No huddle cancelled."); } break;
       case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); if (online) S.online = online; window.scrollTo(0, 0); break; }
       case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
@@ -3138,7 +3266,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
   } else {
     // Headless test hook
-    globalThis.__sim = { initGame, cont, cuesFor, act, netAct, netConnect, actor, NET, DEVICE, kneelAvailable, puntAvailable, fgAvailable, get S() { return S; }, set S(v) { S = v; } };
+    globalThis.__sim = { initGame, cont, cuesFor, act, netAct, netConnect, actor, NET, DEVICE, BUILD, kneelAvailable, puntAvailable, fgAvailable,
+      clockWindow, spikeOK, sidelineOK, otFgWins, pkgChoices, offCallsFor, kickDist, cpuOff, startPlay, get S() { return S; }, set S(v) { S = v; } };
   }
 })();
 </script>
