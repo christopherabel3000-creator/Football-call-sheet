@@ -599,9 +599,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   // Inside 2:00 of the first half or 5:00 of the second half, running out of bounds stops the clock until the snap
   const oobWindow = () => (S.quarter === 2 && S.clock <= 120) || (S.quarter >= 4 && S.clock <= 300);
-  // Spikes and sideline routes are only on the menu in the last two minutes of each half: Q2, Q4, and
-  // the even overtime periods (2OT, 4OT, 6OT...), which close out each pair of overtime periods
-  const clockWindow = () => S.quarter % 2 === 0 && S.clock > 0 && S.clock <= 120;
+  // Spikes and sideline routes are only on the menu in the last two minutes of each half (Q2, Q4), and
+  // in the last two minutes of any overtime period for a team with the ball that's behind (a lead at
+  // the end of any overtime period wins)
+  function clockWindow() {
+    if (!(S.clock > 0 && S.clock <= 120)) return false;
+    if (S.quarter <= 4) return S.quarter % 2 === 0;
+    return !!S.teams && S.teams[S.poss].score < S.teams[1 - S.poss].score;
+  }
   const spikeOK = () => !!S.clockRunning && S.down <= 3 && clockWindow();
   function finishClock(r, stopped) {
     S.oobRestart = false; S.toNote = "";
@@ -2245,7 +2250,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ${sec("Clock and situations", ul([
         "After most plays the clock runs about 35 seconds before the next snap. Incompletions, scores, turnovers and timeouts stop it.",
         "Late in a half: use timeouts, or go no huddle (faster snaps, but nobody can change personnel).",
-        "In the last two minutes of each half, and of the 2nd, 4th and 6th overtime periods (and so on), you can also spike the ball or run a play to the sideline to stop the clock.",
+        "In the last two minutes of each half, you can also spike the ball or run a play to the sideline to stop the clock. In overtime, the same goes for the last two minutes of any period, but only for a team that's behind.",
         "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
         "Overtime: once the other team has had its possession, a field goal that would win the game can be kicked on any down from field goal range.",
         "Leading late with the other team out of timeouts, you can kneel to run out the clock. Trailing late, you can try an onside kick."
