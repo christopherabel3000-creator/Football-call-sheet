@@ -252,7 +252,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
   // together). Online saves carry it, so a phone running an older copy stops and asks its player to
   // reload instead of running a newer game under old rules. Saves from before this check count as 0.
-  const BUILD = 3;
+  const BUILD = 4;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -514,14 +514,18 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   const matchupLine = () => `${name(1)} (${identityText(1)}) at ${name(0)} (${identityText(0)}).${S.teams[0].cpu || S.teams[1].cpu ? ` Computer difficulty: ${DF().name}.` : ""}`;
   function startDrive(team, spot) { if (team !== S.poss) otTurn(team); S.poss = team; S.spot = clamp(spot, 1, 99); S.down = 1; S.toGo = Math.min(10, 100 - S.spot); }
+  // kickTD: the last kickoff was returned for a touchdown. kickEnded: the kickoff after a score ended
+  // the game (a return touchdown in overtime), so that score's result keeps the kickoff in its text.
+  let kickTD = false, kickEnded = false;
   // Kickoff: touchbacks to the 35, most kicks returned
   function kickoff(rcv, allowTD) {
+    kickTD = false;
     const roll = rand();
     if (roll < .25) { startDrive(rcv, 35); return `Kickoff is a touchback. ${name(rcv)} start at their own 35.`; }
     if (roll < .27) { startDrive(rcv, 40); return `The kickoff lands short of the landing zone. ${name(rcv)} get the ball at their own 40.`; }
     tick(ri(5, 8));
     if (allowTD && rand() < .006) {
-      score(rcv, 6); S.needPAT = !S.gameOver; S.patTeam = rcv; startDrive(rcv, 99);
+      score(rcv, 6); S.needPAT = !S.gameOver; S.patTeam = rcv; startDrive(rcv, 99); kickTD = true;
       return `The kickoff is returned all the way! ${name(rcv)} touchdown!`;
     }
     let spot = Math.round(normal(29, 6));
@@ -535,7 +539,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ? `Big kickoff return! ${ret}-yard return out to the ${spotText(rcv, spot)}.`
       : `Kickoff returned ${yd(ret)} to the ${spotText(rcv, spot)}.`;
   }
-  // Onside kicks: only for a team that is losing with under 2:00 left in the 4th quarter
+  // Onside kicks: under the NFL's 2026 rule any team can declare one at any point in the game, so a
+  // coach can call one on any kickoff after their own score. Trailing in the last two minutes, a coach
+  // is asked outright (onsideOK); the computer only tries them then.
   const ONSIDE_P = 1 / 15;
   function onsideOK(k) {
     return S.quarter === 4 && S.clock > 0 && S.clock < 120 && !S.periodOver && !S.gameOver && S.teams[k].score < S.teams[1 - k].score;
@@ -544,16 +550,36 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const down = S.teams[1 - k].score - S.teams[k].score;
     return down >= 9 || S.clock <= 60 || S.tos[k] === 0;
   }
-  // After a score: kick off right away, or let a trailing human coordinator choose
+  // After a score: kick off right away, or let a human coach choose the kick first
   function kickAfterScore(k) {
+    kickEnded = false;
     // In overtime the scoring team's possession is over before the kick; that can decide the game
     if (!S.gameOver) otTurn(1 - k);
     if (S.gameOver) return "";
+    // A score as time runs out in Q2, Q4 or 2OT, 4OT...: no kickoff, since the next period starts with one
+    if (S.periodOver && kickoffNext()) return "";
     if (onsideOK(k)) {
       if (!S.teams[k].cpu) { S.kickChoice = { team: k }; return `${name(k)} kick off next. Trailing late, they can kick deep or try an onside kick.`; }
       if (cpuWantsOnside(k)) return onsideKick(k).text;
     }
-    return kickoff(1 - k, true);
+    // A human coach's kickoff waits for the next tap, so they can call an onside kick on the result screen
+    if (!S.teams[k].cpu) { S.kickChoice = { team: k, later: true, onside: false }; return `${name(k)} kick off next.`; }
+    const text = kickoff(1 - k, true);
+    kickEnded = kickTD && S.gameOver;
+    return text;
+  }
+  // The kickoff a coach held for the next tap: onside if they called it, otherwise deep. A plain kickoff
+  // goes straight on to the next snap, with the return in the banner. An onside kick or a return
+  // touchdown gets its own result. Returns true when it showed a result.
+  function laterKick() {
+    const c = S.kickChoice;
+    if (c.onside) { doKickChoice("onside"); return true; }
+    S.kickChoice = null;
+    const text = kickoff(1 - c.team, true);
+    if (kickTD) { kickResult(c.team, "deep", text); return true; }
+    const r = {}; finishClock(r, true);
+    S.banner = text + (r.tmw ? " Two-minute warning. The clock is stopped." : "");
+    return false;
   }
   function onsideKick(k) {
     const rcv = 1 - k, land = 35 + ri(10, 13);
@@ -565,18 +591,22 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function doKickChoice(kind) {
     const c = S.kickChoice; if (!c) return;
     S.kickChoice = null;
-    const k = c.team, fromX = fx(k, 35), pre = [S.teams[0].score, S.teams[1].score];
-    let r;
+    const k = c.team;
     if (kind === "onside") {
-      const o = onsideKick(k);
-      r = { offId: "onside", team: k, head: o.ok ? "Recovered!" : "Onside fails", tone: o.ok ? "good" : "bad", s: o.ok ? 2 : -1, text: o.text,
-        read: { c: o.ok ? "o" : "d", t: o.ok ? `${name(k)} keep the ball. The comeback is alive.` : `${name(1 - k)} hold on. Great field position for them.` } };
-    } else {
-      const text = kickoff(1 - k, true);
-      r = { offId: "kickoff", team: k, head: S.needPAT ? "Return TD" : "Kickoff", tone: S.needPAT ? "bad" : "", text };
-    }
-    r.fromX = fromX; r.toX = S.needPAT ? fx(1 - k, 100) : fx(S.poss, S.spot);
-    r.sub = S.needPAT ? "" : `${name(S.poss)} ball. ${downText()} at the ${spotText(S.poss, S.spot)}.`;
+      const behind = S.teams[k].score < S.teams[1 - k].score, o = onsideKick(k);
+      kickResult(k, "onside", o.text, o.ok, behind);
+    } else kickResult(k, "deep", kickoff(1 - k, true));
+  }
+  // The result screen for a kickoff that gets one: an onside kick, or a kickoff returned for a touchdown
+  function kickResult(k, kind, text, ok, behind) {
+    const td = kind !== "onside" && kickTD;
+    const r = kind === "onside"
+      ? { offId: "onside", team: k, head: ok ? "Recovered!" : "Onside fails", tone: ok ? "good" : "bad", s: ok ? 2 : -1, text,
+          read: { c: ok ? "o" : "d", t: ok ? `${name(k)} keep the ball. ${behind ? "The comeback is alive." : "The surprise worked."}` : `${name(1 - k)} hold on. Great field position for them.` } }
+      : { offId: "kickoff", team: k, head: td ? "Return TD" : "Kickoff", tone: td ? "bad" : "", text };
+    r.fromX = fx(k, 35); r.toX = td ? fx(1 - k, 100) : fx(S.poss, S.spot);
+    r.sub = S.gameOver && S.quarter >= 5 ? `${name(S.teams[0].score > S.teams[1].score ? 0 : 1)} win it in overtime!`
+      : td ? "" : `${name(S.poss)} ball. ${downText()} at the ${spotText(S.poss, S.spot)}.`;
     r.id = S.playId = (S.playId || 0) + 1;
     finishClock(r, true);
     S.last = r; S.phase = "result"; S.banner = "";
@@ -662,7 +692,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Overtime wrap-up for a play's result: the winner, or a note when the OT phase changed
   function otTail(r) {
     if (!S.ot || S.quarter < 5) return;
-    if (S.gameOver) { r.sub = `${name(S.teams[0].score > S.teams[1].score ? 0 : 1)} win it in overtime!`; return; }
+    if (S.gameOver) {
+      const win = `${name(S.teams[0].score > S.teams[1].score ? 0 : 1)} win it in overtime!`;
+      // Keep a kickoff return that decided it, so the result says what happened
+      r.sub = r.kickEnd && r.sub ? `${r.sub} ${win}` : win;
+      return;
+    }
     const was = S.snap && S.snap.ot;
     if (was && was.ph !== S.ot.ph) r.sub = (r.sub ? r.sub + " " : "") + otNote();
   }
@@ -903,7 +938,10 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       return;
     }
     if (S.retryTwo) { const c = S.retryTwo; S.retryTwo = null; S.patTeam = c.team; startTwo(c.spot); return; }
-    if (S.kickChoice) { S.phase = "kickchoice"; return; }
+    if (S.kickChoice) {
+      if (!S.kickChoice.later) { S.phase = "kickchoice"; return; }
+      if (laterKick()) return;
+    }
     if (S.needPAT) {
       S.needPAT = false;
       if (S.teams[S.patTeam].cpu) doPAT(cpuPAT()); else S.phase = "pat";
@@ -1378,7 +1416,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (good) {
       score(o, 3);
       Object.assign(r, { head: "It's good", tone: "good", text: `${dist}-yard field goal is good. 3 points for ${name(o)}.`, toX: fx(o, 110) });
-      r.sub = S.gameOver ? `${name(o)} win it in overtime!` : kickAfterScore(o);
+      if (S.gameOver) r.sub = `${name(o)} win it in overtime!`;
+      else { r.sub = kickAfterScore(o); r.kickEnd = kickEnded; }
     } else {
       startDrive(d, Math.max(100 - (from - 8), 20));
       Object.assign(r, { head: blocked ? "Blocked!" : "No good", tone: "bad", text: blocked ? `The ${dist}-yard try is blocked!` : `The ${dist}-yard try is ${rand() < .5 ? "wide left" : "wide right"}.`, toX: fx(d, S.spot) });
@@ -1499,7 +1538,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.twoPt = null;
     const ko = kickAfterScore(o);
     const r = { pat: "two", m, mc: M[off][def], pe: res.pe, opk: S.offPkg, dpk: S.defPkg, team: o, offId: off, defId: def, fromX: fx(o, spot), toX: fx(o, good ? 100 : Math.min(99, spot + Math.max(res.y, -3))),
-      head: good ? "Two-point good" : "No good", tone: good ? "good" : "bad", text: note ? `${text} ${note}` : text, sub: ko, y: res.y };
+      head: good ? "Two-point good" : "No good", tone: good ? "good" : "bad", text: note ? `${text} ${note}` : text, sub: ko, kickEnd: kickEnded, y: res.y };
     if (!good) r.tod = true;
     r.read = verdict(Object.assign({}, r, { head: good ? "Touchdown" : "Stopped" }), { down: 1, toGo: 2 });
     r.s = good ? 2 : -2;
@@ -1541,7 +1580,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const r = { read: null, team: t, offId: "xp", defId: null, fromX: fx(t, 118 - d), toX: fx(t, ok ? 110 : 98),
       head: ok ? "Extra point good" : "Extra point missed", tone: ok ? "good" : "bad",
       text: dist ? (ok ? `The ${d}-yard extra point is good.` : `The ${d}-yard extra point is no good.`) : (ok ? "The extra point is through." : "The extra point clanks off the upright."),
-      sub: ko, pat: true };
+      sub: ko, kickEnd: kickEnded, pat: true };
     otTail(r);
     r.id = S.playId = (S.playId || 0) + 1;
     finishClock(r, true);
@@ -2068,6 +2107,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     return `<div class="clockbox"><p class="cstat">${esc(stat)}</p>${btns ? `<div class="clockbtns">${btns}</div>` : ""}</div>`;
   }
+  // After a human coach's score, the kickoff waits for the next tap: they can call an onside kick first
+  function onsideToggle() {
+    const c = S.kickChoice;
+    if (!c || !c.later || S.teams[c.team].cpu || (NET.live && NET.me !== c.team)) return "";
+    return `<button class="btn ghost" data-a="onside" aria-pressed="${!!c.onside}">${c.onside ? "Onside kick called" : `${esc(S.teams[c.team].abbr)}: onside kick`}</button>`;
+  }
   function vResult() {
     const r = S.last, o = r.team, d = 1 - o;
     let offName, defName = r.defId ? DEFP[r.defId].name : null;
@@ -2101,6 +2146,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         ${clockBox()}
         ${field({ ball: r.toX, los: r.fromX, from: r.fromX })}
         ${S.periodOver && !S.needPAT && !S.tryChoice && !S.retryTwo ? `<p class="banner">That's the end of ${S.quarter >= 5 ? "the overtime period" : "the " + ord(S.quarter) + " quarter"}.</p>` : ""}
+        ${onsideToggle()}
         ${netResultButton(label)}
       </section>`;
   }
@@ -2255,7 +2301,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         "In the last two minutes of each half, and of the 2nd, 4th and 6th overtime periods, you can also spike the ball or run a play to the sideline to stop the clock.",
         "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
         "Overtime: once the other team has had its possession, a field goal that would win the game can be kicked on any down from field goal range.",
-        "Leading late with the other team out of timeouts, you can kneel to run out the clock. Trailing late, you can try an onside kick."
+        "Leading late with the other team out of timeouts, you can kneel to run out the clock.",
+        "After your team scores, you can call an onside kick before the kickoff, at any point in the game. About 1 in 15 are recovered. Trailing in the last two minutes, you're asked every time."
       ]))}
       ${sec("Ways to play", ul([
         "Play vs. Computer: you coach the home team. Pick the computer's difficulty: Rookie is loose and a step slow, Pro charts your tendencies, All-Pro learns your habits fast and counters hard.",
@@ -2705,7 +2752,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function cuesFor(a, pre) {
     if (!S.teams) return [];
     if (a === "mute" || a === "to") return [];
-    if (a === "spike") return [];
+    if (a === "spike" || a === "onside") return [];
     if (S.phase === "penalty" && pre.phase !== "penalty") return [];
     const cues = [];
     if (S.tmwJust) S.tmwJust = false;
@@ -2739,7 +2786,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     stale: false, staleCode: null, bumped: false, bumpedSeat: -1 };
   const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const WAIT_PHASES = new Set(["call", "los", "pat", "trychoice", "kickchoice", "penalty", "toss"]);
-  const NET_COMMIT = new Set(["half", "lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "nohuddle", "kickoff", "rematch", "end"]);
+  const NET_COMMIT = new Set(["half", "lock", "audible", "snap", "cont", "pat", "kick", "toss", "try", "pen", "to", "spike", "nohuddle", "kickoff", "rematch", "end", "onside"]);
   const DEVICE = (() => {
     let id = null;
     try { id = localStorage.getItem("csf-device"); } catch (e) {}
@@ -2816,6 +2863,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "half": return S.phase === "halftime";
       case "pat": return S.phase === "pat" && actor() === me;
       case "kick": return S.phase === "kickchoice" && actor() === me;
+      case "onside": return S.phase === "result" && !!S.kickChoice && !!S.kickChoice.later && S.kickChoice.team === me;
       case "toss": return S.phase === "toss" && actor() === me;
       case "try": return S.phase === "trychoice" && actor() === me;
       case "pen": return S.phase === "penalty" && actor() === me;
@@ -3226,6 +3274,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "cont": { const id = S.last && S.last.id; if (online) netReadyTap(); else cont(); if (!online || S.phase !== "result" || (S.last && S.last.id) !== id) window.scrollTo(0, 0); break; }
       case "pat": doPAT(ds.v); break;
       case "kick": if (S.phase === "kickchoice") { doKickChoice(ds.v); window.scrollTo(0, 0); } break;
+      case "onside": { const c = S.kickChoice; if (S.phase === "result" && c && c.later && !S.teams[c.team].cpu) { c.onside = !c.onside; announce(c.onside ? "Onside kick called." : "Onside kick cancelled. Kicking deep."); } break; }
       case "toss": if (S.phase === "toss" && S.toss) { if (S.toss.step === "call") tossCall(ds.v); else tossChoose(ds.v); tossNext(); window.scrollTo(0, 0); } break;
       case "try": { const c = S.tryChoice; if (!c) break; S.tryChoice = null; S.patTeam = c.team; if (ds.v === "two") startTwo(c.spot); else doPAT("kick", xpDist(c.spot)); window.scrollTo(0, 0); break; }
       case "pen": choosePenalty(ds.v === "1"); window.scrollTo(0, 0); break;
