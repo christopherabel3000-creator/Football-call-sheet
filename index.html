@@ -252,7 +252,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
   // together). Online saves carry it, so a phone running an older copy stops and asks its player to
   // reload instead of running a newer game under old rules. Saves from before this check count as 0.
-  const BUILD = 1;
+  const BUILD = 2;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -604,7 +604,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const kickoffNext = () => S.quarter <= 4 ? S.quarter % 2 === 0 : (S.quarter - 4) % 2 === 0;
   // Spikes and sideline routes are only on the menu in the last two minutes of a period. When the
   // next period starts with a kickoff, every team gets them. In 1OT, 3OT, 5OT... the drive carries
-  // over, but a lead at the end of any overtime period wins, so a team that's behind gets them there.
+  // over into the next period, and only a team that's behind gets them there.
   function clockWindow() {
     if (!(S.clock > 0 && S.clock <= 120)) return false;
     if (kickoffNext()) return true;
@@ -629,8 +629,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   //   OT1 (and OT5, OT9...): coin toss, then kickoff
   //   OT2, OT4...: play carries straight over from the previous period (same ball, down, spot)
   //   OT3 (and OT7...): the team that received after the last toss kicks off
-  // A lead at the end of any OT period wins. Once sudden death starts it lasts the rest of the game,
-  // even through a later coin toss.
+  // A lead at the end of an OT period wins, except during the second team's guaranteed possession
+  // (ph 2): then play goes on into the next period, as in the NFL playoffs. Once sudden death starts
+  // it lasts the rest of the game, even through a later coin toss.
   function otState() {
     if (!S.ot && S.quarter >= 5) S.ot = { a: S.poss, ph: 3 }; // a game saved by an older version mid-OT stays sudden death
     return S.ot;
@@ -988,6 +989,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (q === 1 || q === 3) { S.quarter++; S.clock = S.cfg.qLen; S.banner = `End of the ${q === 1 ? "1st" : "3rd"} quarter.`; }
     else if (q === 2) { S.quarter = 3; S.clock = S.cfg.qLen; S.tos = [3, 3]; const r = 1 - S.firstRecv; S.banner = `Halftime. ${name(r)} receive the second-half kickoff. ${kickoff(r, false)}`; S.halftimeShow = !(S.teams[0].cpu && S.teams[1].cpu); }
     else if (S.teams[0].score === S.teams[1].score) startOT(q === 4 ? "Tied after regulation. On to overtime." : "Still tied after overtime. On to another overtime period.");
+    // NFL playoff rule: the clock running out doesn't take away the second team's guaranteed possession
+    else if (q >= 5 && S.ot && S.ot.ph === 2) startOT(`${name(1 - S.ot.a)} are guaranteed an overtime possession, so the game goes on.`);
     else S.gameOver = true;
   }
 
