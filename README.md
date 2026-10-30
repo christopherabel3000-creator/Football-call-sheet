@@ -16,7 +16,7 @@ The **How to play** button at the top of every screen explains the rules without
 - Personnel packages (10, 11, 12, 21, 13, Jumbo vs. Base, Nickel, Dime, Goal Line)
 - Audibles at the line, and defenses that choose whether to show their real look or disguise it as another (a good fake baits a bad audible, but rotating late costs a step at the snap)
 - Punts, field goals, fakes, PATs and two-point tries, onside kicks
-- Game clock with timeouts, kneel-downs and the two-minute warning. Spikes and sideline routes open up in the last two minutes of each half and of the 2nd, 4th and 6th overtime periods. In the 1st, 3rd and 5th overtime periods the drive carries over, so only a team that's behind gets them
+- Game clock with timeouts, kneel-downs and the two-minute warning. Spikes and sideline routes open up in the last two minutes of each half and of the 2nd, 4th and 6th overtime periods
 - Overtime works like the NFL playoffs: both teams are guaranteed the ball (the clock running out doesn't take it away), then sudden death, and periods keep going until there's a winner. Once the other team has had its possession and a field goal would win it, the field goal unit can come out on any down
 - Penalties, play log and box score
 - Computer difficulty: Rookie (loose play calls, no scouting, audibles or disguises, a step slow), Pro (reads the situation and charts your tendencies) and All-Pro (learns your habits fast, counters hard, executes a little better)
