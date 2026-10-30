@@ -2,6 +2,10 @@
 
 A turn-based football coordinator game. Each coach picks their personnel and calls a play on offense or defense, then the snap is simulated.
 
+## Status
+
+**Ready for itch.io** (version 4, October 2026). The game is finished and tested for launch. The itch.io page hasn't been set up yet, so `itchUrl` in `site-config.js` is still empty. Next step: create the itch.io page and follow [Publishing on itch.io](#publishing-on-itchio) below.
+
 ## How to play
 
 **Online:** tap **Create a game**, set up your team, and send your friend the invite link (or the 4-letter code). They pick their team and join, then you kick off. Each of you plays on your own phone.
@@ -40,7 +44,8 @@ The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoev
 1. Zip `index.html`, `firebase-config.js` and `site-config.js` (no folder inside the zip).
 2. On itch.io, create a new project, set **Kind of project** to **HTML**, upload the zip and tick **This file will be played in the browser**.
 3. Set the embed size to about 420 × 860 and turn on **Mobile friendly** and **Fullscreen button**.
-4. Once the page has its address, put it in `site-config.js` as `itchUrl` and upload a fresh zip. Online invites from the itch version then point to that page and include the game code (on itch, friends join by typing the code). The update screen also uses it to reload the whole itch page.
+4. Once the page has its address, put it in `site-config.js` as `itchUrl` and upload a fresh zip. Online invites from the itch version then point to that page and include the game code (on itch, friends join by typing the code). The update screen also uses it to reload the whole itch page. The address is chosen on itch.io's new-project form, so if you put it in `site-config.js` before zipping, one upload is enough.
+5. Before announcing it, play a quick online game on the itch page from two phones. On an iPhone, close and reopen the page mid-game and check that you can take your seat back with the game code.
 
 ## Releasing an update
 
