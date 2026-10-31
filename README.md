@@ -4,7 +4,7 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 ## Status
 
-**Launching on itch.io** (version 5, October 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
+**Live on itch.io** (version 5, launched October 31, 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
 
 ## How to play
 
