@@ -252,7 +252,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
   // together). Online saves carry it, so a phone running an older copy stops and asks its player to
   // reload instead of running a newer game under old rules. Saves from before this check count as 0.
-  const BUILD = 5;
+  const BUILD = 6;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -515,6 +515,8 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       tos: [3, 3], clockRunning: false, oobRestart: false, spikeNext: false, toNote: "" };
     if (cfg.ot) { S.quarter = 4; S.clock = 0; startOT("Overtime mode: tied 0-0 after regulation."); } // straight into OT rules
     else startToss(false, matchupLine());
+    S.statMode = statMode();
+    stat("start");
     tossNext();
   }
   const matchupLine = () => `${name(1)} (${identityText(1)}) at ${name(0)} (${identityText(0)}).${S.teams[0].cpu || S.teams[1].cpu ? ` Computer difficulty: ${DF().name}.` : ""}`;
@@ -970,7 +972,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.periodOver) S.noHuddle = false;
     if (S.periodOver && !S.gameOver) endPeriod();
     if (S.halftimeShow) { S.halftimeShow = false; S.hready = null; S.phase = "halftime"; return; }
-    if (S.gameOver) { S.phase = "final"; return; }
+    if (S.gameOver) { S.phase = "final"; if (!S.statDone) { S.statDone = true; stat("finish"); } return; }
     if (S.toss) { tossNext(); return; }
     startPlay();
   }
@@ -2867,6 +2869,34 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const inviteLink = code => (typeof location !== "undefined" ? location.origin + location.pathname : "") + "?g=" + code;
   // On itch.io the game runs in a frame on another domain, so a ?g= link would skip the itch page and
   // the code in it never reaches the game. There, invites point to the itch page and carry the code.
+  /* ---------- Anonymous play counts ----------
+     Counts games started and finished per day, by where the game was played (itch.io, GitHub Pages
+     or anywhere else) and how (online, vs. the computer at each difficulty, one phone, or watching),
+     plus the random device IDs seen that day for a rough count of players. No names, no game
+     content. Stored under gridironStats/<day>/<site> in the shared database. */
+  function statMode() {
+    if (NET.live) return "online";
+    const c0 = !!S.cfg.t[0].cpu, c1 = !!S.cfg.t[1].cpu;
+    if (c0 && c1) return "watch";
+    if (c0 || c1) return "cpu_" + diffId();
+    return "local";
+  }
+  function statDay() {
+    try { return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); } catch (e) { return new Date().toISOString().slice(0, 10); }
+  }
+  function statSite() {
+    if (onItch()) return "itch";
+    try { if (/\.github\.io$/i.test(location.hostname)) return "github"; } catch (e) {}
+    return "other";
+  }
+  function stat(ev) {
+    try {
+      if (typeof location === "undefined" || !netReady() || !S || !S.statMode) return;
+      const base = netDb().ref(`gridironStats/${statDay()}/${statSite()}`);
+      base.child(`${ev}_${S.statMode}`).transaction(n => (typeof n === "number" ? n : 0) + 1, () => {}, false);
+      base.child("dev/" + DEVICE).transaction(v => v ? undefined : true, () => {}, false);
+    } catch (e) {}
+  }
   function onItch() {
     try { return /(^|\.)itch\.(zone|io)$/i.test(location.hostname) || /^https:\/\/[^/]+\.itch\.io\//i.test(document.referrer || ""); } catch (e) { return false; }
   }

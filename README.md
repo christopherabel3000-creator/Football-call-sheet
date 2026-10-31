@@ -40,6 +40,10 @@ The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoev
 - Every save carries the game's version number (`BUILD` near the top of the script in `index.html`). A phone that opens a game saved by a newer version stops and asks its player to reload, so two phones never play one game under different rules.
 - A coach's seat is tied to an ID saved in the browser. If a phone loses it (a different phone, cleared browser data, or iPhone Safari wiping storage for games inside itch.io's frame), the coach types the game code and taps "I'm the ... coach" (or "I created this game" before the friend joins). Whichever phone had the seat switches to watching.
 
+## Play counts
+
+The game keeps anonymous play counts in the shared database under `gridironStats/<day>/<site>`. Each day (Eastern time) and site (`itch`, `github` or `other`) has a count of games started and finished for each mode (`online`, `local` for one phone, `watch` for computer against computer, and `cpu_rookie`, `cpu_pro` and `cpu_allpro`), plus `dev/<id>` for each random device ID seen that day, for a rough count of players. An online game counts once, on the phone that kicks it off and the phone that plays the final snap. Nothing about the players or the game itself is stored. The counts can be read by anyone, and the rules only let a count go up by one and a device ID be added once.
+
 ## Publishing on itch.io
 
 1. Zip `index.html`, `firebase-config.js` and `site-config.js` (no folder inside the zip).
