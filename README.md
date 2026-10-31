@@ -4,7 +4,7 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 ## Status
 
-**Ready for itch.io** (version 4, October 2026). The game is finished and tested for launch. The itch.io page hasn't been set up yet, so `itchUrl` in `site-config.js` is still empty. Next step: create the itch.io page and follow [Publishing on itch.io](#publishing-on-itchio) below.
+**Ready for itch.io** (version 5, October 2026). The game is finished and tested for launch. The itch.io page hasn't been set up yet, so `itchUrl` in `site-config.js` is still empty. Next step: create the itch.io page and follow [Publishing on itch.io](#publishing-on-itchio) below.
 
 ## How to play
 
@@ -19,6 +19,7 @@ The **How to play** button at the top of every screen explains the rules without
 - Offensive and defensive playbooks with matchup edges
 - Personnel packages (10, 11, 12, 21, 13, Jumbo vs. Base, Nickel, Dime, Goal Line)
 - Audibles at the line, and defenses that choose whether to show their real look or disguise it as another (a good fake baits a bad audible, but rotating late costs a step at the snap)
+- Three ways to punt: a regular punt, Pin it deep (a high, short kick aimed to drop inside the 10; overkick it and it's a touchback) or Boom it (about 6 yards longer and it rolls, but it outkicks the coverage, so big returns and return touchdowns are likelier). The computer pins you from around midfield and booms it when it's backed up deep
 - Punts, field goals, fakes, PATs and two-point tries, and onside kicks at any point in the game (the NFL's 2026 rule)
 - Game clock with timeouts, kneel-downs and the two-minute warning. Spikes and sideline routes open up in the last two minutes of each half and of the 2nd, 4th and 6th overtime periods
 - Overtime works like the NFL playoffs: both teams are guaranteed the ball (the clock running out doesn't take it away), then sudden death, and periods keep going until there's a winner. Once the other team has had its possession and a field goal would win it, the field goal unit can come out on any down

@@ -252,7 +252,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
   // together). Online saves carry it, so a phone running an older copy stops and asks its player to
   // reload instead of running a newer game under old rules. Saves from before this check count as 0.
-  const BUILD = 4;
+  const BUILD = 5;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -491,6 +491,11 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const endHalfKick = () => (S.quarter === 2 || S.quarter >= 4) && S.clock <= 40;
   const fgAvailable = () => !S.twoPt && kickDist() <= 63 && (S.down === 4 || endHalfKick() || otFgWins());
   const puntAvailable = () => !S.twoPt && S.down === 4;
+  // The three ways to punt. Pin it deep aims a high, short kick to drop inside their 10; Boom it
+  // kicks it as far as possible and outkicks the coverage.
+  const PUNT_KINDS = { normal: "Punt", pin: "Pin it deep", boom: "Boom it" };
+  const puntKind = () => PUNT_KINDS[S.puntKind] ? S.puntKind : "normal";
+  const puntName = k => PUNT_KINDS[k] || "Punt";
 
   /* ---------- Game flow ---------- */
   function defaultDraft() {
@@ -760,7 +765,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   function startPlay() {
     if (S.down === 1) S.kneelSeries = !S.twoPt && kneelBase();
     S.scoutNote = null;
-    S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.locked = false; S.aud = null; S.look = null; S.audSel = null; S.disgOn = false; S.disgSel = null; S.disg = null;
+    S.offCall = null; S.defCall = null; S.sel = null; S.offSide = false; S.selSide = false; S.puntKind = null; S.selPunt = null; S.locked = false; S.aud = null; S.look = null; S.audSel = null; S.disgOn = false; S.disgSel = null; S.disg = null;
     S.snap = { total: S.teams[0].score + S.teams[1].score, poss: S.poss, spot: S.spot, down: S.down, toGo: S.toGo, sit: S.twoPt ? "Two-point try" : `${downText()} at the ${spotText(S.poss, S.spot)}`, q: S.quarter, clock: S.clock, ot: S.ot ? { a: S.ot.a, ph: S.ot.ph } : null };
     S.offPkg = null; S.defPkg = null;
     // No huddle: both sides stay in the personnel that was on the field for the last snap
@@ -768,7 +773,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     S.noHuddle = false;
     if (!S.teams[S.poss].cpu) { S.side = "off"; S.pkgSel = S.nhLock ? S.nhLock.off : pkgMem(S.poss).off; S.phase = passPhone() ? "handoff" : "call"; }
     else {
-      S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); S.offSide = cpuSide(S.offCall);
+      S.offPkg = S.nhLock ? S.nhLock.off : cpuOffPkg(); S.offCall = cpuOff(); S.offSide = cpuSide(S.offCall); S.puntKind = S.offCall === "punt" ? cpuPuntKind() : null;
       if (stPkgFor(S.offCall)) S.offPkg = stPkgFor(S.offCall); // a kick or a fake needs the special teams unit on the field
       defStep();
     }
@@ -860,7 +865,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!pkgChoices(isOff).includes(pk) || !(isOff ? offCallsFor(pk) : defCallsFor()).includes(S.sel)) return;
     if (isOff) { S.offPkg = pk; if (!isST(pk)) pkgMem(S.poss).off = pk; }
     else { S.defPkg = pk; pkgMem(1 - S.poss).def = S.defPkg; }
-    if (S.side === "off") { S.offCall = S.sel; S.offSide = !!S.selSide && sideOn(S.sel) && sidelineOK(); S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
+    if (S.side === "off") { S.offCall = S.sel; S.offSide = !!S.selSide && sideOn(S.sel) && sidelineOK(); S.puntKind = S.sel === "punt" ? (PUNT_KINDS[S.selPunt] ? S.selPunt : "normal") : null; S.locked = true; if (S.sel === "kneel") { S.defCall = null; resolve(); } else defStep(); }
     else {
       S.defCall = S.sel;
       S.disg = null;
@@ -926,7 +931,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     r.id = S.playId = (S.playId || 0) + 1;
     S.last = r; S.phase = "result"; S.banner = "";
     S.log.unshift({ q: S.snap.q, clock: S.snap.clock, team: S.snap.poss, sit: S.snap.sit,
-      off: S.offCall === "punt" ? "Punt" : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.offSide && sideOn(S.offCall) ? " (sideline)" : ""}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
+      off: S.offCall === "punt" ? puntName(puntKind()) : S.offCall === "fg" ? "Field goal" : S.offCall === "kneel" ? "Kneel down" : S.offCall === "fp" ? "Fake punt" : S.offCall === "ffg" ? "Fake field goal" : `${OFF_PKGS[S.offPkg] ? OFF_PKGS[S.offPkg].short + " · " : ""}${OFFP[S.offCall].name}${S.offSide && sideOn(S.offCall) ? " (sideline)" : ""}${S.aud ? ` (audible from ${OFFP[S.aud.from].name})` : ""}`,
       def: S.defCall ? `${DEF_PKGS[S.defPkg] ? DEF_PKGS[S.defPkg].short + " · " : ""}${DEFP[S.defCall].name}${S.look && S.look.fake ? ` (disguised as ${LOOKS[S.look.d].name.toLowerCase()})` : ""}` : "", text: r.text + (r.sub ? " " + r.sub : ""), score: `${S.teams[0].score}-${S.teams[1].score}` });
   }
   function cont() {
@@ -1373,35 +1378,68 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     return r;
   }
   function doPunt() {
-    const o = S.poss, d = 1 - o, from = S.spot;
+    const o = S.poss, d = 1 - o, from = S.spot, kind = puntKind();
     const r = { read: null, fromX: fx(o, from), tone: "" };
     tick(ri(9, 13));
     const dc = S.defCall;
     if (dc === "blk" && rand() < .04) return roughKicker(r, "punt");
-    if (rand() < (dc === "blk" ? .08 : dc === "ab" ? .05 : .01)) {
+    // A booming kick takes a beat longer to get off
+    if (rand() < (dc === "blk" ? .08 : dc === "ab" ? .05 : .01) * (kind === "boom" ? 1.25 : 1)) {
       const bs = Math.max(from - 7, 1);
       startDrive(d, 100 - bs);
       Object.assign(r, { head: "Blocked!", tone: "bad", text: `The punt is blocked! ${name(d)} recover at the ${spotText(d, S.spot)}.`, toX: fx(d, S.spot) });
       return r;
     }
-    // With no return unit on the field the ball is left to roll; a return unit sets up a real runback
-    const roll = dc === "ret" || dc === "blk" ? 0 : ri(2, 8);
-    const dist = Math.round(normal(46, 6)) + roll, land = from + dist;
+    let dist, how = "", shank = false;
+    if (kind === "pin") {
+      // Aim to drop it at their 10. Out of range, it's just a high, short kick.
+      const need = 90 - from, reach = Math.round(normal(44, 5));
+      if (need > reach) { dist = Math.max(25, Math.round(normal(37, 5))); how = "short"; }
+      else if (rand() < .05) { shank = true; dist = Math.max(8, need - ri(10, 22)); }
+      else dist = Math.max(15, need + Math.round(normal(1, 5.5)));
+    } else if (kind === "boom") {
+      // A low, driving kick: more distance and more roll, but the coverage can't get there in time
+      dist = Math.round(normal(52, 7)) + (dc === "ret" || dc === "blk" ? 0 : ri(4, 12));
+    } else {
+      // With no return unit on the field the ball is left to roll; a return unit sets up a real runback
+      dist = Math.round(normal(46, 6)) + (dc === "ret" || dc === "blk" ? 0 : ri(2, 8));
+    }
+    const land = from + dist;
     if (land >= 100) {
       startDrive(d, 20);
-      Object.assign(r, { head: "Punt", text: `Punt of ${yd(100 - from)} into the end zone. Touchback.`, toX: fx(d, 20) });
+      Object.assign(r, { head: "Punt", text: `${kind === "pin" ? "The punt carries too far: " : kind === "boom" ? "A booming punt, " : ""}${yd(100 - from)} into the end zone. Touchback.`, toX: fx(d, 20) });
     } else {
-      if (dc === "ret" && rand() < .015) {
+      const tdOdds = dc !== "ret" || kind === "pin" ? 0 : kind === "boom" ? .045 : .015;
+      if (rand() < tdOdds) {
         score(d, 6); S.needPAT = !S.gameOver; S.patTeam = d;
-        Object.assign(r, { head: "Return TD", tone: "bad", text: `Punt of ${yd(dist)}, and it's returned all the way! ${name(d)} touchdown!`, toX: fx(d, 100) });
+        Object.assign(r, { head: "Return TD", tone: "bad", text: `Punt of ${yd(dist)}${kind === "boom" ? ", but it outkicks the coverage" : ""}, and it's returned all the way! ${name(d)} touchdown!`, toX: fx(d, 100) });
         return r;
       }
-      const ret = dc === "ret" ? (rand() < .08 ? ri(18, 40) : ri(2, 14)) : dc === "blk" ? ri(0, 5) : 0;
+      let ret = 0, end;
+      if (kind === "pin") {
+        // High hang time: the returner rarely gets a chance, and the gunners down it if nobody's back
+        if (dc === "ret" && rand() < .22) ret = ri(1, 9);
+        end = ret ? `, returned ${yd(ret)}` : dc === "ret" || dc === "blk" ? ", fair catch" : `, downed by the coverage`;
+      } else if (kind === "boom") {
+        ret = dc === "ret" ? (rand() < .18 ? ri(18, 45) : ri(4, 15)) : dc === "blk" ? ri(3, 14) : 0;
+        end = ret ? `, returned ${yd(ret)}${ret >= 18 ? ". It outkicked the coverage" : ""}` : ". Nobody back to return it, so it rolls";
+      } else {
+        ret = dc === "ret" ? (rand() < .08 ? ri(18, 40) : ri(2, 14)) : dc === "blk" ? ri(0, 5) : 0;
+        end = ret ? `, returned ${yd(ret)}` : dc === "ret" || dc === "blk" ? ", fair catch" : ". Nobody back to return it, so it rolls";
+      }
       startDrive(d, Math.min(100 - land + ret, 99));
-      Object.assign(r, { head: "Punt", text: `Punt of ${yd(dist)}${ret ? `, returned ${yd(ret)}` : dc === "ret" || dc === "blk" ? ", fair catch" : ". Nobody back to return it, so it rolls"}.`, toX: fx(d, S.spot) });
+      const lead = kind === "pin" ? (shank ? "The pooch punt is shanked, " : how === "short" ? "A high, short punt of " : "A pooch punt of ") : kind === "boom" ? "A booming punt of " : "Punt of ";
+      Object.assign(r, { head: kind === "pin" && !ret && !shank && S.spot <= 12 ? "Pinned deep" : "Punt", text: `${lead}${yd(dist)}${end}.`, toX: fx(d, S.spot) });
     }
     r.sub = `${name(d)} ball. ${downText()} at the ${spotText(d, S.spot)}.`;
     return r;
+  }
+  // How the computer punts: pin them near midfield, boom it when it's backed up deep
+  function cpuPuntKind() {
+    if (diffId() === "rookie") return "normal";
+    if (S.spot >= 52) return "pin";
+    if (S.spot <= 20 && rand() < .65) return "boom";
+    return "normal";
   }
 
   function doFG() {
@@ -2040,7 +2078,14 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     if (kickUnit) {
       st += `<p class="sechead">Kick</p><div class="plays">`;
-      if (pk === "punt") st += card("punt", "Punt", "Kick", "Flip the field. Averages about 46 yards.", "st");
+      if (pk === "punt") {
+        const pc = (k, nm, tag, ds) => `<button class="play st" data-a="pick" data-v="punt" data-k="${k}" aria-pressed="${S.sel === "punt" && (S.selPunt || "normal") === k}">
+        <span class="tag">${tag}</span><span class="nm">${nm}</span><span class="ds">${ds}</span></button>`;
+        const pinNote = 90 - S.spot > 44 ? "Too far out to aim from here: a high, short kick that's hard to return." : "Best from around midfield. Overkick it and it's a touchback.";
+        st += pc("normal", "Punt", "Kick", "Flip the field. Averages about 46 yards.") +
+          pc("pin", "Pin It Deep", "Kick", `A high, short punt aimed to drop inside their 10, where the coverage can down it or force a fair catch. ${pinNote}`) +
+          pc("boom", "Boom It", "Kick", "Kick it as far as possible, about 52 yards. Flips the field when you're backed up, but it outkicks the coverage, so big returns happen, and from too close it sails into the end zone.");
+      }
       else { const k = kickDist(); st += card("fg", `${k}-yd field goal`, "Kick", `About ${Math.round(fgProb(k) * 100)}% from here.`, "st"); }
       st += `</div><p class="sechead">Trick play</p><div class="plays">`;
       if (pk === "punt") st += card("fp", "Fake Punt", "Trick", "Line up to punt, then run or throw for the first down. Deadly if they sell out for the kick.", "st");
@@ -2071,7 +2116,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         ${fakeLook ? "" : `<p class="muted pkdesc">No look picked: a random one is shown.</p>`}` : ""}` : "";
     const sideToggle = canSide ? `<p class="sechead">Clock</p>
         <button class="btn ghost" data-a="side" aria-pressed="${sideNow}" ${sideOn(S.sel) ? "" : "disabled"} style="width:100%">${sideNow ? "Sideline: get out of bounds ✓" : "Run it to the sideline"}<br><small style="font-family:var(--body);font-weight:500;font-size:14px;text-transform:none">${sideOn(S.sel) || !S.sel ? "Stops the clock on most gains. Fewer yards, and Cover 2 sits on short throws to the sideline." : "Not available on this play."}</small></button>` : "";
-    const selName = S.sel ? (S.sel === "punt" ? "Punt" : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
+    const selName = S.sel ? (S.sel === "punt" ? puntName(S.selPunt) : S.sel === "fg" ? "Field goal" : S.sel === "kneel" ? "Kneel down" : S.sel === "fp" ? "Fake punt" : S.sel === "ffg" ? "Fake field goal" : book[S.sel].name) : "";
     return `${board()}
       ${S.locked && !isOff && !bothHuman() ? "" : bannerHtml()}
       <div style="--team:${tm.color};display:grid;gap:14px">
@@ -2300,6 +2345,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         "Late in a half: use timeouts, or go no huddle (faster snaps, but nobody can change personnel).",
         "In the last two minutes of each half, and of the 2nd, 4th and 6th overtime periods, you can also spike the ball or run a play to the sideline to stop the clock.",
         "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
+        "Punting: a regular punt, Pin it deep (a high, short kick aimed inside their 10, best from around midfield), or Boom it (as far as possible, to flip the field when you're backed up, but big returns happen and it can sail into the end zone).",
         "Overtime: once the other team has had its possession, a field goal that would win the game can be kicked on any down from field goal range.",
         "Leading late with the other team out of timeouts, you can kneel to run out the clock.",
         "After your team scores, you can call an onside kick before the kickoff, at any point in the game. About 1 in 15 are recovered. Trailing in the last two minutes, you're asked every time."
@@ -2475,7 +2521,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!el || el === document.body || !app.contains(el)) return null;
     if (el.id) return { id: el.id };
     const b = el.closest("[data-a]");
-    return b ? { a: b.dataset.a, v: b.dataset.v, t: b.dataset.t, c: b.dataset.c } : null;
+    return b ? { a: b.dataset.a, v: b.dataset.v, t: b.dataset.t, c: b.dataset.c, k: b.dataset.k } : null;
   }
   function placeFocus(app, key, prev) {
     const changed = lastKey !== null && key !== lastKey;
@@ -2484,7 +2530,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!changed) {
       if (!prev) return;
       if (prev.id) el = document.getElementById(prev.id);
-      else el = [...app.querySelectorAll("[data-a]")].find(b => b.dataset.a === prev.a && b.dataset.v === prev.v && b.dataset.t === prev.t && b.dataset.c === prev.c);
+      else el = [...app.querySelectorAll("[data-a]")].find(b => b.dataset.a === prev.a && b.dataset.v === prev.v && b.dataset.t === prev.t && b.dataset.c === prev.c && b.dataset.k === prev.k);
       if (!el || el.disabled) el = app.querySelector("[data-focus]");
     } else {
       el = app.querySelector("[data-focus]") || app.querySelector("h1, h2");
@@ -3085,7 +3131,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   const styleLabel = (v, book) => v === RANDOM_STYLE ? "Surprise" : (book[v] || book.bal).short;
   const qlenLabel = q => `${Math.round(q / 60)}-minute`;
   function callName(id) {
-    return ({ punt: "Punt", fg: "Field goal", kneel: "Kneel down", fp: "Fake punt", ffg: "Fake field goal" })[id] || (OFFP[id] ? OFFP[id].name : DEFP[id] ? DEFP[id].name : "");
+    return ({ punt: id === "punt" && S.puntKind ? puntName(S.puntKind) : "Punt", fg: "Field goal", kneel: "Kneel down", fp: "Fake punt", ffg: "Fake field goal" })[id] || (OFFP[id] ? OFFP[id].name : DEFP[id] ? DEFP[id].name : "");
   }
   function vNetCreate() {
     const d = S.draft;
@@ -3259,7 +3305,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       case "audpick": if (S.phase === "los") S.audSel = S.audSel === ds.v ? null : ds.v; break;
       case "audible": if (S.phase === "los") { audible(S.audSel); window.scrollTo(0, 0); } break;
       case "snap": if (S.phase === "los") { audible(null); window.scrollTo(0, 0); } break;
-      case "pick": S.sel = ds.v; break;
+      case "pick": S.sel = ds.v; S.selPunt = ds.v === "punt" ? (PUNT_KINDS[ds.k] ? ds.k : "normal") : null; break;
       case "disg": if (S.phase === "call" && S.side === "def") S.disgOn = ds.v === "1"; break;
       case "dlook": if (S.phase === "call" && S.side === "def" && LOOKS[ds.v]) S.disgSel = S.disgSel === ds.v ? null : ds.v; break;
       case "side": if (S.phase === "call" && S.side === "off" && sideOn(S.sel)) S.selSide = !S.selSide; break;
@@ -3323,7 +3369,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   } else {
     // Headless test hook
     globalThis.__sim = { initGame, cont, cuesFor, act, netAct, netConnect, actor, NET, DEVICE, BUILD, kneelAvailable, puntAvailable, fgAvailable,
-      clockWindow, spikeOK, sidelineOK, otFgWins, pkgChoices, offCallsFor, kickDist, cpuOff, startPlay, get S() { return S; }, set S(v) { S = v; } };
+      clockWindow, spikeOK, sidelineOK, otFgWins, pkgChoices, offCallsFor, kickDist, cpuOff, startPlay, doPunt, cpuPuntKind, get S() { return S; }, set S(v) { S = v; } };
   }
 })();
 </script>
