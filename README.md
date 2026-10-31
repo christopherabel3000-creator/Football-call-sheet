@@ -4,7 +4,7 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 ## Status
 
-**Ready for itch.io** (version 5, October 2026). The game is finished and tested for launch. The itch.io page hasn't been set up yet, so `itchUrl` in `site-config.js` is still empty. Next step: create the itch.io page and follow [Publishing on itch.io](#publishing-on-itchio) below.
+**Launching on itch.io** (version 5, October 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
 
 ## How to play
 
@@ -44,7 +44,7 @@ The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoev
 
 1. Zip `index.html`, `firebase-config.js` and `site-config.js` (no folder inside the zip).
 2. On itch.io, create a new project, set **Kind of project** to **HTML**, upload the zip and tick **This file will be played in the browser**.
-3. Set the embed size to about 420 × 860 and turn on **Mobile friendly** and **Fullscreen button**.
+3. Set the embed size to about 420 × 860 and turn on **Mobile friendly**, **Fullscreen button** and **Enable scrollbars** (most screens are taller than 860).
 4. Once the page has its address, put it in `site-config.js` as `itchUrl` and upload a fresh zip. Online invites from the itch version then point to that page and include the game code (on itch, friends join by typing the code). The update screen also uses it to reload the whole itch page. The address is chosen on itch.io's new-project form, so if you put it in `site-config.js` before zipping, one upload is enough.
 5. Before announcing it, play a quick online game on the itch page from two phones. On an iPhone, close and reopen the page mid-game and check that you can take your seat back with the game code.
 
