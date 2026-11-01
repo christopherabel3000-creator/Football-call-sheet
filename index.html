@@ -252,7 +252,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // Version of the game code. Raise it by 1 every time you publish a change (GitHub Pages and itch.io
   // together). Online saves carry it, so a phone running an older copy stops and asks its player to
   // reload instead of running a newer game under old rules. Saves from before this check count as 0.
-  const BUILD = 6;
+  const BUILD = 7;
 
   /* ---------- Playbook ---------- */
   const OFF_IDS = ["ir", "or", "dr", "sc", "sp", "ms", "dp", "pa"];
@@ -957,19 +957,23 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (!S.periodOver && !S.gameOver) {
       cpuClock();
       cpuNoHuddle();
+      cpuBurn();
       if (S.clockRunning) {
         if (S.noHuddle && !nhAvailable()) S.noHuddle = false;
-        const res = runoff(S.spikeNext ? ri(8, 14) : S.noHuddle ? ri(15, 20) : S.oobRestart ? ri(15, 22) : (S.last && S.last.offId === "kneel") ? ri(38, 40) : ri(30, 38));
+        if (S.burnClock && !burnAvailable()) S.burnClock = false;
+        // Running the clock: 36 to 39 seconds, or the most the out-of-bounds restart allows
+        const res = runoff(S.spikeNext ? ri(8, 14) : S.burnClock ? (S.oobRestart ? 22 : ri(36, 39)) : S.noHuddle ? ri(15, 20) : S.oobRestart ? ri(15, 22) : (S.last && S.last.offId === "kneel") ? ri(38, 40) : ri(30, 38));
         if (res !== "ok") S.noHuddle = false; // two-minute warning or end of the period: everyone can huddle and sub
         if (res === "tmw" && S.spikeNext) { S.spikeNext = false; S.banner = "Two-minute warning. The clock stopped on its own, so no spike needed."; }
       }
-      S.oobRestart = false; S.toNote = "";
+      S.oobRestart = false; S.toNote = ""; S.burnClock = false;
       if (S.spikeNext && !S.periodOver) { S.noHuddle = false; doSpike(); return; }
       S.spikeNext = false;
     }
     S.wasRunning = S.clockRunning;
     S.clockRunning = false;
     if (S.periodOver) S.noHuddle = false;
+    S.burnClock = false;
     if (S.periodOver && !S.gameOver) endPeriod();
     if (S.halftimeShow) { S.halftimeShow = false; S.hready = null; S.phase = "halftime"; return; }
     if (S.gameOver) { S.phase = "final"; if (!S.statDone) { S.statDone = true; stat("finish"); } return; }
@@ -990,7 +994,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   }
   function callTimeout(t) {
     if (!S.clockRunning || !S.tos || S.tos[t] <= 0) return false;
-    S.tos[t]--; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false; S.noHuddle = false;
+    S.tos[t]--; S.clockRunning = false; S.oobRestart = false; S.spikeNext = false; S.noHuddle = false; S.burnClock = false;
     S.toNote = `Timeout, ${name(t)}. ${S.tos[t]} left this ${S.quarter >= 5 ? "overtime" : "half"}.`;
     S.log.unshift({ q: S.quarter, clock: S.clock, team: t, sit: "Timeout", off: "Timeout", def: "", text: S.toNote, score: `${S.teams[0].score}-${S.teams[1].score}` });
     return true;
@@ -1017,9 +1021,19 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       !S.retryTwo && !S.kickChoice && !S.twoPt && !!r && !r.pen && !r.accepted && !r.preSnap && !r.pat && r.team === S.poss &&
       !!OFFP[r.offId] && !!r.opk && !!r.dpk && S.down <= 4;
   }
+  // Running the clock: in the 4th quarter, an offense with the lead can use as much of the play clock
+  // as it can between plays (36 to 39 seconds). It can't be combined with no huddle or a spike.
+  function burnAvailable() {
+    return S.phase === "result" && S.clockRunning && S.quarter === 4 && !S.periodOver && !S.gameOver && !S.needPAT && !S.tryChoice &&
+      !S.retryTwo && !S.kickChoice && !S.twoPt && S.teams[S.poss].score > S.teams[1 - S.poss].score;
+  }
+  // Computer coordinators with the lead in the 4th quarter always run the clock
+  function cpuBurn() {
+    if (S.teams[S.poss].cpu && burnAvailable()) { S.burnClock = true; S.noHuddle = false; S.spikeNext = false; }
+  }
   function cpuNoHuddle() {
     const o = S.poss;
-    if (!S.teams[o].cpu || S.spikeNext || !nhAvailable()) return;
+    if (!S.teams[o].cpu || S.spikeNext || S.burnClock || !nhAvailable()) return;
     const diff = S.teams[o].score - S.teams[1 - o].score;
     if ((S.quarter >= 4 && diff < 0 && S.clock <= 300) || (S.quarter === 2 && S.clock <= 150 && S.clock > 0)) S.noHuddle = true;
   }
@@ -2144,11 +2158,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (S.needPAT || S.tryChoice || S.retryTwo || S.kickChoice || S.periodOver || S.gameOver || !S.tos) return "";
     const o = S.poss, t = S.teams;
     let stat;
-    if (S.clockRunning) stat = `Clock running. About ${S.spikeNext ? "10" : S.noHuddle ? "15 to 20" : S.oobRestart ? "20" : "35"} seconds come off before the next snap${S.oobRestart ? " (out of bounds, clock restarts when the ball is set)" : ""}.${S.noHuddle ? ` ${name(o)} are going no huddle: nobody can change personnel.` : ""}`;
+    if (S.clockRunning) stat = `Clock running. About ${S.spikeNext ? "10" : S.burnClock ? (S.oobRestart ? "22" : "36 to 39") : S.noHuddle ? "15 to 20" : S.oobRestart ? "20" : "35"} seconds come off before the next snap${S.oobRestart ? " (out of bounds, clock restarts when the ball is set)" : ""}.${S.noHuddle ? ` ${name(o)} are going no huddle: nobody can change personnel.` : ""}${S.burnClock ? ` ${name(o)} are running the clock.` : ""}`;
     else stat = S.toNote ? S.toNote + " Clock stopped." : "Clock stopped until the next snap.";
     let btns = "";
     if (S.clockRunning) {
       [0, 1].forEach(i => { if (!t[i].cpu && S.tos[i] > 0 && (!NET.live || i === NET.me)) btns += `<button class="btn ghost" data-a="to" data-t="${i}">${esc(t[i].abbr)} timeout (${S.tos[i]})</button>`; });
+      if (!t[o].cpu && burnAvailable() && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="burn" aria-pressed="${!!S.burnClock}">${S.burnClock ? "Running the clock" : `${esc(t[o].abbr)}: run the clock`}</button>`;
       if (!t[o].cpu && nhAvailable() && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="nohuddle" aria-pressed="${!!S.noHuddle}">${S.noHuddle ? "Going no huddle" : `${esc(t[o].abbr)}: no huddle`}</button>`;
       if (!t[o].cpu && (spikeOK() || S.spikeNext) && (!NET.live || o === NET.me)) btns += `<button class="btn ghost" data-a="spike" aria-pressed="${!!S.spikeNext}">${S.spikeNext ? "Spiking next snap" : `${esc(t[o].abbr)}: spike next snap`}</button>`;
     }
@@ -2345,6 +2360,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ${sec("Clock and situations", ul([
         "After most plays the clock runs about 35 seconds before the next snap. Incompletions, scores, turnovers and timeouts stop it.",
         "Late in a half: use timeouts, or go no huddle (faster snaps, but nobody can change personnel).",
+        "Ahead in the 4th quarter: run the clock, using 36 to 39 seconds between plays. It can't be combined with no huddle.",
         "In the last two minutes of each half, and of the 2nd, 4th and 6th overtime periods, you can also spike the ball or run a play to the sideline to stop the clock.",
         "Fourth down: send out the punt team or field goal unit, or keep the offense on the field and go for it. The defense sees who runs on, and kicking units can run a fake.",
         "Punting: a regular punt, Pin it deep (a high, short kick aimed inside their 10, best from around midfield), or Boom it (as far as possible, to flip the field when you're backed up, but big returns happen and it can sail into the end zone).",
@@ -3363,8 +3379,9 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
         S.hready = null; startPlay(); window.scrollTo(0, 0); break;
       }
       case "to": if (callTimeout(+ds.t)) announce(S.toNote); break;
-      case "spike": if (S.spikeNext || spikeOK()) { S.spikeNext = !S.spikeNext; if (S.spikeNext) S.noHuddle = false; announce(S.spikeNext ? "Spike set for the next snap." : "Spike cancelled."); } break;
-      case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) S.spikeNext = false; announce(S.noHuddle ? "Going no huddle." : "No huddle cancelled."); } break;
+      case "spike": if (S.spikeNext || spikeOK()) { S.spikeNext = !S.spikeNext; if (S.spikeNext) { S.noHuddle = false; S.burnClock = false; } announce(S.spikeNext ? "Spike set for the next snap." : "Spike cancelled."); } break;
+      case "nohuddle": if (nhAvailable()) { S.noHuddle = !S.noHuddle; if (S.noHuddle) { S.spikeNext = false; S.burnClock = false; } announce(S.noHuddle ? "Going no huddle." : "No huddle cancelled."); } break;
+      case "burn": if (burnAvailable()) { S.burnClock = !S.burnClock; if (S.burnClock) { S.noHuddle = false; S.spikeNext = false; } announce(S.burnClock ? "Running the clock." : "No longer running the clock."); } break;
       case "rematch": { const cfg = JSON.parse(JSON.stringify(S.cfg)); initGame(cfg); if (online) S.online = online; window.scrollTo(0, 0); break; }
       case "newsetup": S = { v: 1, phase: "setup", draft: JSON.parse(JSON.stringify(S.cfg)) }; break;
       case "end":

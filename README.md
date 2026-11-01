@@ -4,7 +4,7 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 ## Status
 
-**Live on itch.io** (version 5, launched October 31, 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
+**Live on itch.io** (launched October 31, 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
 
 ## How to play
 
@@ -22,6 +22,7 @@ The **How to play** button at the top of every screen explains the rules without
 - Three ways to punt: a regular punt, Pin it deep (a high, short kick aimed to drop inside the 10; overkick it and it's a touchback) or Boom it (about 6 yards longer and it rolls, but it outkicks the coverage, so big returns and return touchdowns are likelier). The computer pins you from around midfield and booms it when it's backed up deep
 - Punts, field goals, fakes, PATs and two-point tries, and onside kicks at any point in the game (the NFL's 2026 rule)
 - Game clock with timeouts, kneel-downs and the two-minute warning. Spikes and sideline routes open up in the last two minutes of each half and of the 2nd, 4th and 6th overtime periods
+- Run the clock: in the 4th quarter, the team with the lead can use 36 to 39 seconds between plays. It can't be combined with no huddle or a spike, and computer coordinators always do it with a 4th-quarter lead
 - Overtime works like the NFL playoffs: both teams are guaranteed the ball (the clock running out doesn't take it away), then sudden death, and periods keep going until there's a winner. Once the other team has had its possession and a field goal would win it, the field goal unit can come out on any down
 - Penalties, play log and box score
 - Computer difficulty: Rookie (loose play calls, no scouting, audibles or disguises, a step slow), Pro (reads the situation and charts your tendencies) and All-Pro (learns your habits fast, counters hard, executes a little better)
