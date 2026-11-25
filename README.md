@@ -6,6 +6,8 @@ A turn-based football coordinator game. Each coach picks their personnel and cal
 
 **Live on itch.io** (launched October 31, 2026) at [playbyear.itch.io/gridiron-duel](https://playbyear.itch.io/gridiron-duel). `itchUrl` in `site-config.js` points there, so online invites from the itch version open that page with the game code.
 
+**iPhone app:** being prepared for the App Store (November 2026), the same way as Friday to Sunday, Shardkin, Hidden Ranks and Salvo Command. The store text, reviewer notes and privacy answers are in [appstore/listing.md](appstore/listing.md). The website, itch.io and the app all share one database, so a player on any of them can join a game from the others.
+
 ## How to play
 
 **Online:** tap **Create a game**, set up your team, and send your friend the invite link (or the 4-letter code). They pick their team and join, then you kick off. Each of you plays on your own phone.
@@ -43,11 +45,11 @@ The game state lives in a Firebase Realtime Database under `games/<CODE>`. Whoev
 
 ## Play counts
 
-The game keeps anonymous play counts in the shared database under `gridironStats/<day>/<site>`. Each day (Eastern time) and site (`itch`, `github` or `other`) has a count of games started and finished for each mode (`online`, `local` for one phone, `watch` for computer against computer, and `cpu_rookie`, `cpu_pro` and `cpu_allpro`), plus `dev/<id>` for each random device ID seen that day, for a rough count of players. An online game counts once, on the phone that kicks it off and the phone that plays the final snap. Nothing about the players or the game itself is stored. The counts can be read by anyone, and the rules only let a count go up by one and a device ID be added once.
+The game keeps anonymous play counts in the shared database under `gridironStats/<day>/<site>`. Each day (Eastern time) and site (`itch`, `github`, `app` for the iPhone app, or `other`) has a count of games started and finished for each mode (`online`, `local` for one phone, `watch` for computer against computer, and `cpu_rookie`, `cpu_pro` and `cpu_allpro`), plus `dev/<id>` for each random device ID seen that day, for a rough count of players. An online game counts once, on the phone that kicks it off and the phone that plays the final snap. Nothing about the players or the game itself is stored. The counts can be read by anyone, and the rules only let a count go up by one and a device ID be added once.
 
 ## Publishing on itch.io
 
-1. Zip `index.html`, `firebase-config.js` and `site-config.js` (no folder inside the zip).
+1. Zip `index.html`, `firebase-config.js`, `site-config.js`, `privacy.html`, `support.html` and the `fonts`, `icons` and `vendor` folders, with no folder around them (the zip opens straight to `index.html`).
 2. On itch.io, create a new project, set **Kind of project** to **HTML**, upload the zip and tick **This file will be played in the browser**.
 3. Set the embed size to about 420 × 860 and turn on **Mobile friendly**, **Fullscreen button** and **Enable scrollbars** (most screens are taller than 860).
 4. Once the page has its address, put it in `site-config.js` as `itchUrl` and upload a fresh zip. Online invites from the itch version then point to that page and include the game code (on itch, friends join by typing the code). The update screen also uses it to reload the whole itch page. The address is chosen on itch.io's new-project form, so if you put it in `site-config.js` before zipping, one upload is enough.
@@ -57,5 +59,18 @@ The game keeps anonymous play counts in the shared database under `gridironStats
 
 1. Raise `BUILD` near the top of the script in `index.html` by 1. The How to play screen shows it as the version number.
 2. Merge to `main`. GitHub Pages updates on its own.
-3. Zip the same three files and upload the zip to itch.io in place of the old one, right away. Both copies share one database, so a player on either one can join a game from the other.
+3. Zip the same files and folders and upload the zip to itch.io in place of the old one, right away. Both copies share one database, so a player on either one can join a game from the other.
 4. Open How to play on both copies and check that they show the new version.
+5. If the change affects how a game plays (anything that raised `BUILD`), send the iPhone app an update too, the same day if you can: Actions tab, **iPhone app**, **Run workflow**, then submit the new TestFlight build in App Store Connect. Until Apple approves it, a player in the app who joins a game saved by the newer website is asked to update from the App Store.
+
+## The iPhone app
+
+The App Store app wraps the same game with Capacitor. Nothing in the game needs a build step; the app's packages are only for the wrapper.
+
+- `capacitor.config.json`, `ios/` and `package.json`: the Capacitor project (bundle ID `com.playbyear.gridironduel`).
+- `scripts/build-www.js` copies the game's own files into `www/`, the folder the app is built from.
+- `.github/workflows/ios.yml` builds the app on GitHub's Macs. Every push checks it still builds; **Run workflow** in the Actions tab builds a signed copy and sends it to TestFlight. It needs the four App Store Connect secrets (`APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`) in the repo's Settings, Secrets and variables, Actions, the same as the other apps.
+- Fonts (`fonts/`) and the Firebase library (`vendor/firebase/`) are kept with the game, so nothing loads from outside.
+- In the app, invite links point to the GitHub Pages site, and the app remembers the online game it's in so it rejoins when it's opened again.
+- `privacy.html` and `support.html` are linked from the bottom of the game and used as the App Store's privacy policy and support URLs.
+- `tools/icon.py` draws the app icon, launch image and web icons from `tools/icon.html`. `tools/screenshots.py` plays a quick game against the computer and saves the App Store screenshots in `appstore/screenshots/`.

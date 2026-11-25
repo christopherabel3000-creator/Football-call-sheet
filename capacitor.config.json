@@ -1,0 +1,10 @@
+{
+  "appId": "com.playbyear.gridironduel",
+  "appName": "Gridiron Duel",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#EBEFEA",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}

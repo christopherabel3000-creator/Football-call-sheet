@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Gridiron Duel: the app icon and launch image, drawn with the game's own colors.
+     tools/icon.py opens this page and saves it as PNG files. ?splash draws the launch image. -->
+<html><head><meta charset="utf-8">
+<style>
+  html, body { margin: 0; }
+  .art { position: relative; overflow: hidden; background: #2E6B3F; }
+  .icon { width: 1024px; height: 1024px; }
+  .splash { width: 2732px; height: 2732px; background: #EBEFEA; }
+  .card { position: absolute; left: 50%; top: 50%; width: 1024px; height: 1024px; transform: translate(-50%, -50%); overflow: hidden; }
+  .splash .card { transform: translate(-50%, -50%) scale(.42); border-radius: 230px; }
+  /* Turf stripes and chalk yard lines */
+  .turf { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, #2E6B3F 0 128px, #275E36 128px 256px); }
+  .yard { position: absolute; top: 0; bottom: 0; width: 12px; background: rgba(255,255,255,.5); }
+  svg { position: absolute; inset: 0; }
+</style></head>
+<body><div id="art" class="art icon"><div class="card">
+  <div class="turf"></div>
+  <div class="yard" style="left:250px"></div><div class="yard" style="left:506px"></div><div class="yard" style="left:762px"></div>
+  <svg viewBox="0 0 1024 1024" width="1024" height="1024">
+    <!-- A called play: two O's on offense, two X's on defense, and a yellow route with an arrowhead -->
+    <g stroke="#FFFFFF" stroke-width="34" fill="none" stroke-linecap="round">
+      <circle cx="300" cy="700" r="78"/>
+      <circle cx="560" cy="700" r="78"/>
+      <path d="M380 230 L500 350 M500 230 L380 350"/>
+      <path d="M680 230 L800 350 M800 230 L680 350"/>
+    </g>
+    <path d="M300 610 L300 500 Q300 430 380 430 L640 430" stroke="#E5B925" stroke-width="40" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M630 370 L740 430 L630 490 z" fill="#E5B925"/>
+  </svg>
+</div></div>
+<script>if (location.search.includes('splash')) document.getElementById('art').className = 'art splash';</script>
+</body></html>

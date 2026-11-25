@@ -2,9 +2,9 @@
 <title>Gridiron Duel</title>
 <meta name="description" content="Gridiron Duel: a turn-based football coordinator game. Call plays against a friend online or the computer. Screen reader friendly.">
 <meta name="theme-color" content="#faf9f5">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@400;500&display=swap">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="fonts/fonts.css?v=1">
 <style>
 /* Layout: one narrow column like a coordinator's laminated call sheet, with a stadium scoreboard pinned on top */
 :root {
@@ -49,6 +49,9 @@ body {
   padding-inline: 16px; padding-block: 12px 40px;
 }
 .wrap { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+.sitefoot { max-width: 560px; margin: 32px auto 0; padding-top: 12px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.sitefoot p { margin: 0; }
+.sitefoot a { color: var(--ink); }
 h1, h2, h3 { font-family: var(--display); font-weight: 800; line-height: 1; text-wrap: balance; margin: 0; letter-spacing: .01em; }
 p { margin: 0; }
 button { font: inherit; color: inherit; cursor: pointer; }
@@ -237,11 +240,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
 </style>
 
 <div class="wrap" id="app"></div>
+<footer class="sitefoot"><p><a href="privacy.html">Privacy policy</a> · <a href="support.html">Help and contact</a></p></footer>
 <div id="sr" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Online play: Firebase Realtime Database. The project's settings live in firebase-config.js. -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<!-- The Firebase library (version 10.12.2) is kept with the game in vendor/firebase, so the iPhone app loads nothing from outside. -->
+<script src="vendor/firebase/firebase-app-compat.js"></script>
+<script src="vendor/firebase/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="site-config.js"></script>
 
@@ -2882,7 +2887,13 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     }
     return NET.db;
   }
-  const inviteLink = code => (typeof location !== "undefined" ? location.origin + location.pathname : "") + "?g=" + code;
+  // The App Store app (Capacitor) has no web address of its own, so its invite links point at the game's
+  // website. A friend can join from the website, from itch.io by typing the code, or from the app.
+  const WEB_HOME = "https://christopherabel3000-creator.github.io/Football-call-sheet/";
+  function isNativeApp() {
+    try { const C = typeof window !== "undefined" && window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); } catch (e) { return false; }
+  }
+  const inviteLink = code => (isNativeApp() ? WEB_HOME : typeof location !== "undefined" ? location.origin + location.pathname : "") + "?g=" + code;
   // On itch.io the game runs in a frame on another domain, so a ?g= link would skip the itch page and
   // the code in it never reaches the game. There, invites point to the itch page and carry the code.
   /* ---------- Anonymous play counts ----------
@@ -2901,6 +2912,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     try { return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }); } catch (e) { return new Date().toISOString().slice(0, 10); }
   }
   function statSite() {
+    if (isNativeApp()) return "app";
     if (onItch()) return "itch";
     try { if (/\.github\.io$/i.test(location.hostname)) return "github"; } catch (e) {}
     return "other";
@@ -2928,8 +2940,12 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     const text = `Play Gridiron Duel with me: open ${page || "Gridiron Duel on itch.io"}, then type game code ${code} and tap Join.`;
     return { url: page, text, show: text };
   }
+  // The page address keeps the online game's code, so a reload rejoins it. The App Store app always opens
+  // without one, so there the code is also kept in storage and the app rejoins from it when it opens.
+  const APP_GAME_KEY = "gridiron-app-game";
   function setUrl(code) {
     try { history.replaceState(null, "", code ? "?g=" + code : location.pathname); } catch (e) {}
+    if (isNativeApp()) { try { if (code) localStorage.setItem(APP_GAME_KEY, code); else localStorage.removeItem(APP_GAME_KEY); } catch (e) {} }
   }
   // Whose decision the current screen is: a team index, or -1 when either coach can act
   function actor() {
@@ -3230,6 +3246,17 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   // This phone has an older version of the game than the one the online game was saved with
   function vUpdate() {
     const code = NET.staleCode, itch = onItch(), page = itch ? itchPage() : null;
+    // In the App Store app a reload can't bring a newer version: the update comes from the App Store.
+    if (isNativeApp()) return `
+      <div class="masthead">
+        <p class="eyebrow">Online game${code ? " · " + esc(code) : ""}</p>
+        <h1>Update <em>needed</em></h1>
+        <p class="muted">This game was saved by a newer version of Gridiron Duel than the one on this phone. Open the App Store, update Gridiron Duel, then open it again.${code ? ` Type game code ${esc(code)} and tap Join to pick up where you left off.` : ""}</p>
+      </div>
+      <section class="panel">
+        <p class="muted" style="font-size:14px">If the App Store doesn't show an update yet, it can take a day or two to arrive.</p>
+      </section>
+      <div class="foot"><button class="linkbtn" data-a="netback">Leave this game</button></div>`;
     const after = !code ? "" : itch ? ` Then type game code ${esc(code)} and tap Join to pick up where you left off.` : " The game picks up where you left off.";
     const reload = page
       ? `<a class="btn" href="${esc(page)}" target="_top" style="display:block;box-sizing:border-box;text-align:center;text-decoration:none">Reload the game</a>`
@@ -3403,6 +3430,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     // An invite link (?g=CODE) opens straight into that online game
     let code = null;
     try { code = new URLSearchParams(location.search).get("g"); } catch (e) {}
+    if (!code && isNativeApp()) { try { code = localStorage.getItem(APP_GAME_KEY); } catch (e) {} }
     if (code && netReady()) { if (S.phase !== "setup") S = { v: 1, phase: "setup", draft: S.cfg ? JSON.parse(JSON.stringify(S.cfg)) : defaultDraft() }; netConnect(code); return; }
     if (S.teams && !S.tos) { S.tos = [3, 3]; S.clockRunning = false; }
     render();
