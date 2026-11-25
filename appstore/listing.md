@@ -4,9 +4,9 @@ Everything to paste into App Store Connect for version 1.0. Each section shows A
 
 ## Name (30 characters at most)
 
-Gridiron Duel
+Gridiron Duel: Play Caller
 
-If App Store Connect says the name is taken, use: Gridiron Duel: Play Caller
+"Gridiron Duel" alone was already taken on the App Store (Nov 25 2026). The name under the icon on the home screen is still "Gridiron Duel" (CFBundleDisplayName in Info.plist).
 
 ## Subtitle (30)
 
@@ -58,6 +58,7 @@ Never add the name of any real league, team or player.
 - Version: 1.0
 - Bundle ID: com.playbyear.gridironduel
 - SKU: gridironduel
+- Apple ID: 6839418589 (created Nov 25 2026)
 
 ## Screenshots
 
