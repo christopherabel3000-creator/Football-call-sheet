@@ -1,4 +1,4 @@
-// Firebase project settings for online play (project: call-sheet-football).
+// Firebase project settings for online play (project: call-sheet-football, Gridiron Duel's own).
 // These values identify the project; they are not passwords, so it's fine for them to be public.
 // Access is controlled by the database rules in database.rules.json.
 window.FIREBASE_CONFIG = {

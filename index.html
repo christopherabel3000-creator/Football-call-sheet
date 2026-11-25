@@ -546,7 +546,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
       ? `Big kickoff return! ${ret}-yard return out to the ${spotText(rcv, spot)}.`
       : `Kickoff returned ${yd(ret)} to the ${spotText(rcv, spot)}.`;
   }
-  // Onside kicks: under the NFL's 2026 rule any team can declare one at any point in the game, so a
+  // Onside kicks: under the 2026 pro rule any team can declare one at any point in the game, so a
   // coach can call one on any kickoff after their own score. Trailing in the last two minutes, a coach
   // is asked outright (onsideOK); the computer only tries them then.
   const ONSIDE_P = 1 / 15;
@@ -662,7 +662,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   //   OT2, OT4...: play carries straight over from the previous period (same ball, down, spot)
   //   OT3 (and OT7...): the team that received after the last toss kicks off
   // A lead at the end of an OT period wins, except during the second team's guaranteed possession
-  // (ph 2): then play goes on into the next period, as in the NFL playoffs. Once sudden death starts
+  // (ph 2): then play goes on into the next period, as in pro playoff overtime. Once sudden death starts
   // it lasts the rest of the game, even through a later coin toss.
   function otState() {
     if (!S.ot && S.quarter >= 5) S.ot = { a: S.poss, ph: 3 }; // a game saved by an older version mid-OT stays sudden death
@@ -1043,7 +1043,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (q === 1 || q === 3) { S.quarter++; S.clock = S.cfg.qLen; S.banner = `End of the ${q === 1 ? "1st" : "3rd"} quarter.`; }
     else if (q === 2) { S.quarter = 3; S.clock = S.cfg.qLen; S.tos = [3, 3]; const r = 1 - S.firstRecv; S.banner = `Halftime. ${name(r)} receive the second-half kickoff. ${kickoff(r, false)}`; S.halftimeShow = !(S.teams[0].cpu && S.teams[1].cpu); }
     else if (S.teams[0].score === S.teams[1].score) startOT(q === 4 ? "Tied after regulation. On to overtime." : "Still tied after overtime. On to another overtime period.");
-    // NFL playoff rule: the clock running out doesn't take away the second team's guaranteed possession
+    // Pro playoff overtime rule: the clock running out doesn't take away the second team's guaranteed possession
     else if (q >= 5 && S.ot && S.ot.ph === 2) startOT(`${name(1 - S.ot.a)} are guaranteed an overtime possession, so the game goes on.`);
     else S.gameOver = true;
   }
@@ -1261,7 +1261,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     fm: { name: "Face mask", on: "def", yds: 15, auto: true },
     idf: { name: "Ineligible man downfield", on: "off", yds: 5 }
   };
-  const FLAG_RATE = 1.2; // tuned so about 1 snap in 12 draws a flag, close to the NFL
+  const FLAG_RATE = 1.2; // tuned so about 1 snap in 12 draws a flag, close to the pro game
   function pickFrom(w) { let x = rand() / FLAG_RATE; for (const k in w) { x -= w[k]; if (x < 0) return k; } return null; }
   // Fouls before the snap (the play never runs)
   function rollPreSnap(def) {
@@ -2771,7 +2771,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
   })();
 
   const HOME = 0;
-  // Crowd and horn rules: regular games root for the home team; a neutral site (Super Bowl) reacts to the play itself.
+  // Crowd and horn rules: regular games root for the home team; a neutral site (the championship game) reacts to the play itself.
   function resultCues(r, preScores) {
     const cues = [], neutral = !!S.neutral;
     const homeScored = S.teams[HOME].score > preScores[HOME], awayScored = S.teams[1 - HOME].score > preScores[1 - HOME];
@@ -2807,7 +2807,7 @@ th { font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--m
     if (crowd) cues.push(["crowd", t + .2, crowd]);
     const hornForScore = neutral ? (!patOnly && (homeScored || awayScored)) : (homeScored && (!isPAT || r.team !== HOME));
     if (hornForScore) cues.push(["horn", t + .45, 1.76]);
-    // Made extra point: a shorter horn (half the touchdown horn) for the home team, or for anyone at the Super Bowl
+    // Made extra point: a shorter horn (half the touchdown horn) for the home team, or for anyone at the championship game
     if (r.offId === "xp" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .3, 1.1]);
     // Made two-point conversion: the full touchdown-length horn
     if (r.pat === "two" && r.tone === "good" && (neutral || r.team === HOME)) cues.push(["horn", t + .45, 1.76]);
