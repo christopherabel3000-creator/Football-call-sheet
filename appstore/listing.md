@@ -97,7 +97,7 @@ Questions to read carefully when filling in the form:
 
 ## Accessibility (App Store accessibility labels)
 
-VoiceOver only, for iPhone and iPad, the same as Christopher's other apps. Don't add any other label (such as Dark Interface or Reduced Motion) unless he asks for it.
+VoiceOver only, for iPhone and iPad, the same as Christopher's other apps. Saved as a draft on Nov 25 2026; Apple only lets it be published once a version has been released, so publish it after approval. Don't add any other label (such as Dark Interface or Reduced Motion) unless he asks for it.
 
 ## Notes for the reviewer
 
@@ -106,7 +106,7 @@ Apple asks every new app for six things in this field: a screen recording made o
 Gridiron Duel is a complete turn-based football strategy game for one or two players, built to be fully playable with VoiceOver by a developer who plays with a screen reader. The build was tested on a physical iPhone through TestFlight before submission.
 
 1. SCREEN RECORDING
-Recorded on a physical iPhone running the latest iOS, starting from launching the app: (paste the YouTube link here)
+Recorded on a physical iPhone running the latest iOS, starting from launching the app: https://youtu.be/hBbM84tHaI0
 The voice heard in the recording is VoiceOver, since the developer plays the game with a screen reader.
 The app has no account registration or login, no user-generated content (players type only their own team names, seen only by their opponent; there are no messages or chat), and no paid content or purchases. So those flows don't exist to show.
 
@@ -125,6 +125,10 @@ The app works the same in every region. It is in English only. There is no regio
 
 6. REGULATED INDUSTRIES AND THIRD-PARTY MATERIAL
 Not applicable. The app is not in a regulated industry. It contains no third-party or licensed material: the name, artwork, text and code are original, and it uses no real league, team or player names. The three fonts are used under the SIL Open Font License.
+
+## Submission
+
+Submitted for App Review on Nov 25 2026 (build 102). TestFlight: internal group "Me" with automatic distribution.
 
 ## Price and availability
 
